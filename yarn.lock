@@ -41,16 +41,6 @@ mathjs@^6.2.5:
     tiny-emitter "2.1.0"
     typed-function "1.1.1"
 
-nblas@^2.1.6:
-  version "2.1.7"
-  resolved "https://registry.yarnpkg.com/nblas/-/nblas-2.1.7.tgz#0b6c21edb4f765ea1560a595bf82372febe75c0e"
-  integrity sha512-z0E6kxaqmfgl2hfxTNTwk/AoS7rLkuxtWqgYwvEHOy9oU1uVL2p43X7rDEMHrB+O/O7sCVl1Krul/RsWW3rEYQ==
-
-nlapack@^2.0.2:
-  version "2.0.3"
-  resolved "https://registry.yarnpkg.com/nlapack/-/nlapack-2.0.3.tgz#a688b23218e1ebc100d3ef02a32b6c29cbbc2bb0"
-  integrity sha512-XHOZJ+2szPimlWwMVFXs9kyx8P1r1EuHxq8fEujcLjpxM3l7hgoHRj6SgwaO+eqj9Oa1PE6GNOPv1BRHK7QW8Q==
-
 seed-random@2.2.0:
   version "2.2.0"
   resolved "https://registry.yarnpkg.com/seed-random/-/seed-random-2.2.0.tgz#2a9b19e250a817099231a5b99a4daf80b7fbed54"
@@ -70,11 +60,3 @@ typescript@^3.7.4:
   version "3.7.4"
   resolved "https://registry.yarnpkg.com/typescript/-/typescript-3.7.4.tgz#1743a5ec5fef6a1fa9f3e4708e33c81c73876c19"
   integrity sha512-A25xv5XCtarLwXpcDNZzCGvW2D1S3/bACratYBx2sax8PefsFhlYmkQicKHvpYflFS8if4zne5zT5kpJ7pzuvw==
-
-vectorious@^6.0.0-beta.11:
-  version "6.0.0-beta.11"
-  resolved "https://registry.yarnpkg.com/vectorious/-/vectorious-6.0.0-beta.11.tgz#4adbaa1e09260808b7a5561ca4f3b6c86095924b"
-  integrity sha512-ZCINeMOmcIz3fkVEWR80L0q6Xd0O83swbyifwN9kzy4LyqhNvB2vAMB1XfTYq0sy8kNNjSj9oaKfvTroqPIdWA==
-  optionalDependencies:
-    nblas "^2.1.6"
-    nlapack "^2.0.2"
