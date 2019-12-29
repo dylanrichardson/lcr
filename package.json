@@ -1,0 +1,19 @@
+{
+  "name": "lcr",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/drich14/lcr.git",
+  "author": "Dylan Richardson <dylanrichardson1996@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/lcr.js"
+  },
+  "dependencies": {
+    "mathjs": "^6.2.5",
+    "vectorious": "^6.0.0-beta.11"
+  },
+  "devDependencies": {
+    "typescript": "^3.7.4"
+  }
+}
