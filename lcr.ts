@@ -1,4 +1,21 @@
-// TODO: make struct with chips, position, and isTurn
+interface GameState {
+  turn: number;
+  chips: number[];
+}
+
+enum Die {
+  Left,
+  Center,
+  Right,
+  Dot
+}
+
+const dieProbability = {
+  [Die.Left]: 1 / 6,
+  [Die.Center]: 1 / 6,
+  [Die.Right]: 1 / 6,
+  [Die.Dot]: 1 / 2
+};
 
 const getParameters = () => {
   const {
@@ -25,14 +42,17 @@ const getParameters = () => {
   return { winner, chips };
 };
 
-const calculateProbability = (winner, chips) => {
+const calculateProbability = (winner: number, chips: GameState) => {
   // TODO: implement
 };
 
 const main = () => {
   const { winner, chips } = getParameters();
 
-  const probability = calculateProbability(winner, chips);
+  const probability = calculateProbability(winner, {
+    turn: 1,
+    chips
+  });
 
   chips.forEach((c, i) =>
     console.log(`Position ${i + 1} starts with ${c} chip(s).`)
