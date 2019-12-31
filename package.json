@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "lodash": "^4.17.15",
+    "lodash.product": "^18.9.19",
     "mathjs": "^6.2.5"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.149",
+    "@types/mathjs": "^6.0.2",
     "@types/node": "^13.1.1",
     "typescript": "^3.7.4"
   }

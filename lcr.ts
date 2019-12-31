@@ -1,16 +1,28 @@
-interface GameState {
-  turn: number;
-  chips: number[];
-}
+import { usolve } from 'mathjs';
+import 'lodash.product';
+import _ from 'lodash';
 
-interface Variable {
+type GameParameters = {
+  winnerPosition: number; // zero-based
+  chipsAtPosition: number[];
+};
+
+type GameState = {
+  turn: number; // zero-based
+  chipsAtPosition: number[];
+};
+
+type Term = {
+  probability: number;
   state: GameState;
-  winningState: GameState;
-}
+};
 
-type Term = number | Record<number, Variable>;
+type Expression = Term[];
 
-type Equation = Term[];
+type Equation = {
+  state: GameState;
+  expression: Expression;
+};
 
 enum Die {
   Left,
@@ -19,6 +31,58 @@ enum Die {
   Dot
 }
 
+type Roll = Die[];
+
+const getProblemParameters = (): GameParameters => {
+  const {
+    argv: [, , winnerStr, ...positionChipsStrs]
+  } = process;
+
+  const winnerPosition = parseInt(winnerStr) - 1;
+  const chipsAtPosition = _.map(positionChipsStrs, _.parseInt);
+
+  if (!_.isInteger(winnerPosition)) {
+    throw new Error('Error: <winner> must be an integer.');
+  }
+
+  if (chipsAtPosition.length <= winnerPosition) {
+    throw new Error(
+      'Error: Length of <chips>... must be greater than or equal to <winner>.'
+    );
+  }
+
+  if (!chipsAtPosition.every(_.isInteger)) {
+    throw new Error('Error: <chips>... must be a list of integers.');
+  }
+
+  return { winnerPosition, chipsAtPosition };
+};
+
+const isWinningState = (winnerPosition: number, state: GameState): boolean => {
+  // TODO:
+  return false;
+};
+
+const isLosingState = (winnerPosition: number, state: GameState): boolean => {
+  // TODO:
+  return false;
+};
+
+const isEndingState = (state: GameState): boolean => {
+  // TODO:
+  return false;
+};
+
+const getRolls = (state: GameState): Roll[] => {
+  // TODO: _.product
+  return [];
+};
+
+const getNextState = (state: GameState) => (roll: Roll): GameState => {
+  // TODO:
+  return state;
+};
+
 const dieProbability = {
   [Die.Left]: 1 / 6,
   [Die.Center]: 1 / 6,
@@ -26,75 +90,113 @@ const dieProbability = {
   [Die.Dot]: 1 / 2
 };
 
-const getParameters = () => {
-  const {
-    argv: [, , winnerStr, ...chipsStrs]
-  } = process;
-
-  const winner = parseInt(winnerStr) - 1;
-  const chips = chipsStrs.map(chipsStr => parseInt(chipsStr));
-
-  if (!Number.isInteger(winner)) {
-    throw new Error('Error: <winner> must be an integer.');
-  }
-
-  if (chips.length < winner + 1) {
-    throw new Error(
-      'Error: Length of <chips>... must be greater than or equal to <winner>.'
-    );
-  }
-
-  if (!chips.every(Number.isInteger)) {
-    throw new Error('Error: <chips>... must be a list of integers.');
-  }
-
-  return { winner, chips };
+const getRollProbability = (roll: Roll): number => {
+  // TODO: dieProbability
+  return 0;
 };
 
-const getWinningStates = (
-  winnerPos: number,
-  numPlayers: number,
-  numChips: number
-): GameState[] => {
-  const players = new Array(numPlayers).fill(0);
+const getSingleEquation = (state: GameState): Equation => {
+  const rolls = getRolls(state);
 
-  return new Array(numChips).fill(0).map((_, chipIdx) => ({
-    turn: winnerPos,
-    chips: players.map((_, idx) => (idx === winnerPos ? chipIdx + 1 : 0))
+  const expression = rolls.map(roll => ({
+    state: getNextState(state)(roll),
+    probability: getRollProbability(roll)
   }));
+
+  return { state, expression };
 };
 
-const getEquations = (): Equation[] => {
-  // TODO:
-  return [];
+const getRemainingEquations = (
+  states: GameState[],
+  prevEqs: Equation[]
+): Equation[] => {
+  return states.reduce((eqs, state) => getEquations(state, eqs), prevEqs);
 };
 
-const solve = (eqs: Equation[]): number => {
-  // TODO:
-  return NaN;
+const printState = ({ turn, chipsAtPosition }: GameState): string => {
+  const chipStrs = chipsAtPosition.map(_.toString);
+  chipStrs[turn] = `(${chipStrs[turn]})`;
+  return chipStrs.join('');
 };
 
-const sum = (l: number[]) => l.reduce((a, b) => a + b);
+const printEq = ({ state, expression }: Equation): string => {
+  return `${printState(state)}=${expression
+    .map(expr => `${expr.probability}*${printState(expr.state)}`)
+    .join('+')}`;
+};
 
-const calculateProbability = (winner: number, { turn, chips }: GameState) => {
-  const winningStates = getWinningStates(winner, chips.length, sum(chips));
-  console.log('winning states', winningStates);
+const getEquations = (state: GameState, prevEqs: Equation[]): Equation[] => {
+  if (isEndingState(state)) {
+    return prevEqs;
+  }
 
-  const eqs = getEquations();
+  if (prevEqs.some(eq => _.isEqual(state, eq.state))) {
+    return prevEqs;
+  }
 
-  return solve(eqs);
+  const currentStateEquation = getSingleEquation(state);
+  console.log(
+    'curr state:',
+    printState(state),
+    'eq:',
+    printEq(currentStateEquation)
+  );
+
+  const nextStates = _.map(currentStateEquation.expression, 'state');
+  console.log(
+    'curr state:',
+    printState(state),
+    'next:',
+    nextStates.map(printState)
+  );
+
+  const remainingEquations = getRemainingEquations(nextStates, prevEqs);
+
+  return [currentStateEquation, ...remainingEquations];
+};
+
+const getMatrix = (
+  winnerPosition: number,
+  eqs: Equation[]
+): [number[][], number[]] => {
+  // TODO: isWinningState, isLosingState
+  return [
+    [
+      [1, 2],
+      [2, 1]
+    ],
+    [1, 2]
+  ];
+};
+
+const calculateProbability = (
+  winnerPosition: number,
+  state: GameState
+): number => {
+  const eqs = getEquations(state, []);
+  console.log('eqs:', eqs.map(printEq));
+
+  const [matrix, vector] = getMatrix(winnerPosition, eqs);
+
+  const probabilities = usolve(matrix, vector) as number[];
+
+  return probabilities[winnerPosition];
 };
 
 const main = () => {
-  const { winner, chips } = getParameters();
+  const { winnerPosition, chipsAtPosition } = getProblemParameters();
 
-  const probability = calculateProbability(winner, { turn: 0, chips });
-
-  chips.forEach((c, i) =>
+  chipsAtPosition.forEach((c, i) =>
     console.log(`Position ${i + 1} starts with ${c} chip(s).`)
   );
+
+  const probability = calculateProbability(winnerPosition, {
+    turn: 0,
+    chipsAtPosition
+  });
+
   console.log(
-    `The probability of position ${winner} winning is ${probability}%.`
+    `The probability of position ${winnerPosition} winning is ${probability}%.`
   );
 };
 
