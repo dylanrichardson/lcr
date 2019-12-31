@@ -1,15 +1,16 @@
 import { usolve } from 'mathjs';
-import 'lodash.product';
 import _ from 'lodash';
+
+type PositionChips = number[];
 
 type GameParameters = {
   winnerPosition: number; // zero-based
-  chipsAtPosition: number[];
+  chipsAtPosition: PositionChips;
 };
 
 type GameState = {
   turn: number; // zero-based
-  chipsAtPosition: number[];
+  chipsAtPosition: PositionChips;
 };
 
 type Term = {
@@ -69,18 +70,92 @@ const isLosingState = (winnerPosition: number, state: GameState): boolean => {
 };
 
 const isEndingState = (state: GameState): boolean => {
-  // TODO:
-  return false;
+  return state.chipsAtPosition.filter(Boolean).length === 1;
 };
 
-const getRolls = (state: GameState): Roll[] => {
-  // TODO: _.product
-  return [];
+const cartesianProduct = (arrays: any[][]): any[][] =>
+  _.reduce(
+    arrays,
+    (a, b) => _.flatten(_.map(a, x => _.map(b, y => (x as any[]).concat([y])))),
+    [[]]
+  );
+
+const getPossibleRolls = (state: GameState): Roll[] => {
+  const numChips = state.chipsAtPosition[state.turn];
+
+  return cartesianProduct(
+    new Array(numChips).fill([Die.Left, Die.Center, Die.Right, Die.Dot])
+  );
 };
 
-const getNextState = (state: GameState) => (roll: Roll): GameState => {
-  // TODO:
-  return state;
+const mod = (n: number, m: number): number => ((n % m) + m) % m;
+
+const getNextTurn = (currentTurn: number, nextChips: PositionChips): number => {
+  const numPositions = nextChips.length;
+
+  const adjacentTurn = mod(currentTurn + 1, numPositions);
+
+  // console.log('gNT', currentTurn, nextChips, adjacentTurn);
+
+  return nextChips[adjacentTurn]
+    ? adjacentTurn
+    : getNextTurn(adjacentTurn, nextChips);
+};
+
+const moveChip = (turn: number) => (
+  currentChips: PositionChips,
+  die: Die
+): PositionChips => {
+  const numPositions = currentChips.length;
+  const nextChips = [...currentChips];
+
+  switch (die) {
+    case Die.Left:
+      nextChips[turn]--;
+      nextChips[mod(turn + 1, numPositions)]++;
+      break;
+    case Die.Center:
+      nextChips[turn]--;
+      break;
+    case Die.Right:
+      nextChips[turn]--;
+      nextChips[mod(turn - 1, numPositions)]++;
+      break;
+    case Die.Dot:
+      break;
+  }
+
+  return nextChips;
+};
+
+const printDie = (die: Die): string => {
+  switch (die) {
+    case Die.Left:
+      return 'L';
+    case Die.Center:
+      return 'C';
+    case Die.Right:
+      return 'R';
+    case Die.Dot:
+      return '.';
+  }
+};
+
+const printRoll = (roll: Roll): string => {
+  return roll.map(printDie).join('');
+};
+
+const getNextState = (currentState: GameState, roll: Roll): GameState => {
+  console.log('gNS', printState(currentState), printRoll(roll));
+  const nextChips = roll.reduce(
+    moveChip(currentState.turn),
+    currentState.chipsAtPosition
+  );
+  console.log('gNS nextChips', nextChips);
+  const nextTurn = getNextTurn(currentState.turn, nextChips);
+  console.log('gNS nextTurn', nextTurn);
+
+  return { turn: nextTurn, chipsAtPosition: nextChips };
 };
 
 const dieProbability = {
@@ -91,17 +166,21 @@ const dieProbability = {
 };
 
 const getRollProbability = (roll: Roll): number => {
-  // TODO: dieProbability
-  return 0;
+  return roll.reduce((product, die) => product * dieProbability[die], 1);
 };
 
 const getSingleEquation = (state: GameState): Equation => {
-  const rolls = getRolls(state);
+  const rolls = getPossibleRolls(state);
+  console.log('gSE rolls', rolls.map(printRoll));
 
   const expression = rolls.map(roll => ({
-    state: getNextState(state)(roll),
+    state: getNextState(state, roll),
     probability: getRollProbability(roll)
   }));
+  console.log(
+    'gSE expr',
+    expression.map(e => [printState(e.state), e.probability])
+  );
 
   return { state, expression };
 };
@@ -121,16 +200,19 @@ const printState = ({ turn, chipsAtPosition }: GameState): string => {
 
 const printEq = ({ state, expression }: Equation): string => {
   return `${printState(state)}=${expression
-    .map(expr => `${expr.probability}*${printState(expr.state)}`)
+    .map(expr => `${_.round(expr.probability, 2)}*${printState(expr.state)}`)
     .join('+')}`;
 };
 
 const getEquations = (state: GameState, prevEqs: Equation[]): Equation[] => {
+  console.log('gEqs', printState(state), prevEqs.map(printEq));
   if (isEndingState(state)) {
+    console.log('isEnding');
     return prevEqs;
   }
 
   if (prevEqs.some(eq => _.isEqual(state, eq.state))) {
+    console.log('isPrev');
     return prevEqs;
   }
 
@@ -138,7 +220,7 @@ const getEquations = (state: GameState, prevEqs: Equation[]): Equation[] => {
   console.log(
     'curr state:',
     printState(state),
-    'eq:',
+    'eq expr:',
     printEq(currentStateEquation)
   );
 
@@ -150,9 +232,7 @@ const getEquations = (state: GameState, prevEqs: Equation[]): Equation[] => {
     nextStates.map(printState)
   );
 
-  const remainingEquations = getRemainingEquations(nextStates, prevEqs);
-
-  return [currentStateEquation, ...remainingEquations];
+  return getRemainingEquations(nextStates, [currentStateEquation, ...prevEqs]);
 };
 
 const getMatrix = (
