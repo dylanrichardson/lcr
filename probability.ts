@@ -1,17 +1,18 @@
-import { usolve } from 'mathjs';
+import { lusolve } from 'mathjs';
 import _ from 'lodash';
-import { PositionChips, GameState, Equation, Die, Roll } from './types';
-import { printEq } from './logging';
+import {
+  PositionChips,
+  GameState,
+  Expression,
+  Equation,
+  Die,
+  Roll
+} from './types';
+import { printState } from './logging';
 import { cartesianProduct, mod } from './utils';
 
 const isWinningState = (winnerPosition: number, state: GameState): boolean => {
-  // TODO:
-  return false;
-};
-
-const isLosingState = (winnerPosition: number, state: GameState): boolean => {
-  // TODO:
-  return false;
+  return isEndingState(state) && state.chipsAtPosition[winnerPosition] > 0;
 };
 
 const isEndingState = (state: GameState): boolean => {
@@ -118,30 +119,73 @@ const getEquations = (state: GameState, prevEqs: Equation[]): Equation[] => {
   return getRemainingEquations(nextStates, [...prevEqs, currentStateEquation]);
 };
 
+const getStateHash = (state: GameState): string => {
+  return printState(state);
+};
+
+const getExpressionMap = (expr: Expression): Map<string, number> => {
+  return new Map(
+    expr.map(({ state, probability }) => [getStateHash(state), probability])
+  );
+};
+
+const getZeroSumExpression = ({ state, expression }: Equation): Expression => {
+  return [...expression, { state, probability: -1 }];
+};
+
+const getRow = (winnerPosition: number, nonEndingStates: GameState[]) => (
+  eq: Equation
+): [number[], number] => {
+  // console.log('getRow', printState(eq.state), nonEndingStates.map(printState));
+  const expression = getZeroSumExpression(eq);
+  // console.log('0-sum expr', printExpression(expression));
+
+  const nonEndingStateProbabilitiesMap = getExpressionMap(
+    expression.filter(({ state }) => !isEndingState(state))
+  );
+  // console.log(nonEndingStateProbabilitiesMap);
+
+  const winningStateProbability = _.sum(
+    expression
+      .filter(({ state }) => isWinningState(winnerPosition, state))
+      .map(({ probability }) => probability)
+  );
+
+  const nonEndingStateProbabilities = nonEndingStates.map(
+    state => nonEndingStateProbabilitiesMap.get(getStateHash(state)) || 0
+  );
+  // console.log('non end probs', nonEndingStateProbabilities);
+
+  return [nonEndingStateProbabilities, -winningStateProbability];
+};
+
 const getMatrix = (
   winnerPosition: number,
   eqs: Equation[]
 ): [number[][], number[]] => {
-  // TODO: isWinningState, isLosingState
-  return [
-    [
-      [1, 2],
-      [2, 1]
-    ],
-    [1, 2]
-  ];
+  const nonEndingStates = _.map(eqs, 'state');
+
+  const x = eqs.map(getRow(winnerPosition, nonEndingStates));
+
+  return [x.map(([y]) => y), x.map(([, y]) => y)];
 };
 
 export const calculateProbability = (
   winnerPosition: number,
-  state: GameState
+  startingState: GameState
 ): number => {
-  const eqs = getEquations(state, []);
-  console.log('eqs:', eqs.map(printEq));
+  const eqs = getEquations(startingState, []);
+  // console.log('eqs:', eqs.map(printEq));
+
+  const nonEndingStates = _.map(eqs, 'state');
+
+  const winnerEqPosition = _.findIndex(nonEndingStates, startingState);
 
   const [matrix, vector] = getMatrix(winnerPosition, eqs);
+  // console.log('matrix:', matrix, vector);
 
-  const probabilities = usolve(matrix, vector) as number[];
+  const probabilities = lusolve(matrix, vector) as number[];
+  // console.log('probs', probabilities);
 
-  return probabilities[winnerPosition];
+  return probabilities[winnerEqPosition];
 };

@@ -40,7 +40,10 @@ const main = () => {
   });
 
   console.log(
-    `The probability of position ${winnerPosition} winning is ${probability}%.`
+    `The probability of position ${winnerPosition} winning is ${_.round(
+      probability,
+      5
+    )}%.`
   );
 };
 
