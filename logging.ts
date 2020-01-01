@@ -1,5 +1,4 @@
 import _ from 'lodash';
-import { isWinningState, isEndingState } from './probability';
 import { Die, Roll, GameState, Equation, Expression } from './types';
 
 export const printDie = (die: Die): string => {
@@ -19,18 +18,7 @@ export const printRoll = (roll: Roll): string => {
   return roll.map(printDie).join('');
 };
 
-// const sn = (state: GameState): string => {
-//   if (isWinningState(2, state)) {
-//     return '1';
-//   }
-//   if (isEndingState(state)) {
-//     return '0';
-//   }
-//   return 's' + state.turn + state.chipsAtPosition.join('');
-// };
-
 export const printState = ({ turn, chipsAtPosition }: GameState): string => {
-  // return sn({ turn, chipsAtPosition });
   const chipStrs = chipsAtPosition.map(_.toString);
   chipStrs[turn] = `(${chipStrs[turn]})`;
   return chipStrs.join('');

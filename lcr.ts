@@ -1,8 +1,8 @@
 import _ from 'lodash';
-import { GameParameters } from './types';
-import { calculateProbability } from './probability';
+import { PositionChips } from './types';
+import { calculateProbabilities } from './probability';
 
-export const getProblemParameters = (): GameParameters => {
+export const getProblemParameters = (): PositionChips => {
   const {
     argv: [, , winnerStr, ...positionChipsStrs]
   } = process;
@@ -10,8 +10,8 @@ export const getProblemParameters = (): GameParameters => {
   const winnerPosition = parseInt(winnerStr) - 1;
   const chipsAtPosition = _.map(positionChipsStrs, _.parseInt);
 
-  if (!_.isInteger(winnerPosition)) {
-    throw new Error('Error: <winner> must be an integer.');
+  if (!_.isInteger(winnerPosition) && winnerPosition > 0) {
+    throw new Error('Error: <winner> must be a positive integer.');
   }
 
   if (chipsAtPosition.length <= winnerPosition) {
@@ -20,30 +20,31 @@ export const getProblemParameters = (): GameParameters => {
     );
   }
 
-  if (!chipsAtPosition.every(_.isInteger)) {
-    throw new Error('Error: <chips>... must be a list of integers.');
+  if (!chipsAtPosition.every(c => _.isInteger(c) && c >= 0)) {
+    throw new Error(
+      'Error: <chips>... must be a list of nonnegative integers.'
+    );
   }
 
-  return { winnerPosition, chipsAtPosition };
+  return chipsAtPosition;
 };
 
 const main = () => {
-  const { winnerPosition, chipsAtPosition } = getProblemParameters();
+  const chipsAtPosition = getProblemParameters();
 
   chipsAtPosition.forEach((c, i) =>
     console.log(`Position ${i + 1} starts with ${c} chip(s).`)
   );
 
-  const probability = calculateProbability(winnerPosition, {
+  const probabilities = calculateProbabilities({
     turn: 0,
     chipsAtPosition
   });
 
-  console.log(
-    `The probability of position ${winnerPosition + 1} winning is ${_.round(
-      probability * 100,
-      5
-    )}%.`
+  probabilities.forEach((p, i) =>
+    console.log(
+      `The probability of position ${i + 1} winning is ${_.round(p * 100, 5)}%.`
+    )
   );
 };
 

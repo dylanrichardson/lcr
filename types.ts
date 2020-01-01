@@ -1,10 +1,5 @@
 export type PositionChips = number[];
 
-export type GameParameters = {
-  winnerPosition: number; // zero-based
-  chipsAtPosition: PositionChips;
-};
-
 export type GameState = {
   turn: number; // zero-based
   chipsAtPosition: PositionChips;
