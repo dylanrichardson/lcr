@@ -1,9 +1,9 @@
 import _ from 'lodash';
 
-export const cartesianProduct = (arrays: any[][]): any[][] =>
+export const cartesianProduct = <T>(arrays: T[][]): T[][] =>
   _.reduce(
     arrays,
-    (a, b) => _.flatten(_.map(a, x => _.map(b, y => (x as any[]).concat([y])))),
+    (a, b) => _.flatten(_.map(a, x => _.map(b, y => (x as T[]).concat([y])))),
     [[]]
   );
 
