@@ -8,7 +8,7 @@ import {
   Die,
   Roll
 } from './types';
-import { printState } from './logging';
+import { printState, printEq, printExpression } from './logging';
 import { cartesianProduct, mod } from './utils';
 
 const isWinningState = (winnerPosition: number, state: GameState): boolean => {
@@ -175,17 +175,31 @@ export const calculateProbability = (
   startingState: GameState
 ): number => {
   const eqs = getEquations(startingState, []);
-  // console.log('eqs:', eqs.map(printEq));
+  console.log('eqs:', eqs.length, eqs.map(printEq));
 
   const nonEndingStates = _.map(eqs, 'state');
 
   const winnerEqPosition = _.findIndex(nonEndingStates, startingState);
 
   const [matrix, vector] = getMatrix(winnerPosition, eqs);
-  // console.log('matrix:', matrix, vector);
+  console.log(
+    'matrix eqs:',
+    matrix.map(
+      (r, j) =>
+        `${printExpression(
+          r.map((c, i) => ({ state: nonEndingStates[i], probability: c }))
+        )}=${_.round(vector[j], 2)}`
+    )
+  );
+
+  console.log(
+    'matrix:',
+    matrix.map(r => r.map(c => _.round(c, 3))),
+    vector
+  );
 
   const probabilities = lusolve(matrix, vector) as number[];
-  // console.log('probs', probabilities);
+  console.log('probs', probabilities);
 
   return probabilities[winnerEqPosition];
 };
