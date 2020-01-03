@@ -9,7 +9,6 @@ import {
   Die,
   Roll
 } from './types';
-import { printState } from './logging';
 import { cartesianProduct, mod } from './utils';
 
 const isWinningState = _.memoize(
@@ -120,44 +119,35 @@ const getRemainingEquations = (
   return states.reduce((eqs, state) => getEquations(state, eqs), prevEqs);
 };
 
-const getEquations = _.memoize(
-  (state: GameState, prevEqs: Equation[]): Equation[] => {
-    console.log('c', ++c);
-    if (isEndingState(state)) {
-      return prevEqs;
-    }
+const getEquations = (state: GameState, prevEqs: Equation[]): Equation[] => {
+  if (isEndingState(state)) {
+    return prevEqs;
+  }
 
-    if (prevEqs.some(eq => _.isEqual(state, eq.state))) {
-      return prevEqs;
-    }
+  if (prevEqs.some(eq => _.isEqual(state, eq.state))) {
+    return prevEqs;
+  }
 
-    const currentStateEquation = getSingleEquation(state);
+  console.log('c', ++c);
+  const currentStateEquation = getSingleEquation(state);
 
-    const nextStates = _.map(currentStateEquation.expression.terms, 'state');
+  const nextStates = _.map(currentStateEquation.expression.terms, 'state');
 
-    return getRemainingEquations(nextStates, [
-      ...prevEqs,
-      currentStateEquation
-    ]);
+  return getRemainingEquations(nextStates, [...prevEqs, currentStateEquation]);
+};
+
+const getExpressionMap = _.memoize(
+  (expr: Expression): Map<string, number> => {
+    const map = new Map<string, number>();
+
+    expr.terms.forEach(({ state: { hash }, probability }) => {
+      map.set(hash, probability + (map.get(hash) || 0));
+    });
+
+    return map;
   },
-  (s, pe) => `${s.hash}${pe.hash}`
+  ({ hash }) => hash
 );
-
-const getStateHash = (state: GameState): string => {
-  return printState(state);
-};
-
-const getExpressionMap = (expr: Expression): Map<string, number> => {
-  const map = new Map<string, number>();
-
-  expr.terms.forEach(({ state, probability }) => {
-    const hash = getStateHash(state);
-
-    map.set(hash, probability + (map.get(hash) || 0));
-  });
-
-  return map;
-};
 
 const getZeroSumExpression = ({ state, expression }: Equation): Expression => {
   return new Expression([...expression.terms, new Term(-1, state)]);
@@ -166,28 +156,23 @@ const getZeroSumExpression = ({ state, expression }: Equation): Expression => {
 const getRow = (winnerPosition: number, nonEndingStates: GameState[]) => (
   eq: Equation
 ): [number[], number] => {
-  // console.log('getRow', printEq(eq), nonEndingStates.map(printState));
   const expression = getZeroSumExpression(eq);
-  // console.log('0-sum expr', printExpression(expression));
 
   const nonEndingStateProbabilitiesMap = getExpressionMap(
     new Expression(
       expression.terms.filter(({ state }) => !isEndingState(state))
     )
   );
-  // console.log(nonEndingStateProbabilitiesMap);
 
   const winningStateProbability = _.sum(
     expression.terms
       .filter(({ state }) => isWinningState(winnerPosition, state))
       .map(({ probability }) => probability)
   );
-  // console.log('winProb', winningStateProbability);
 
   const nonEndingStateProbabilities = nonEndingStates.map(
-    state => nonEndingStateProbabilitiesMap.get(getStateHash(state)) || 0
+    state => nonEndingStateProbabilitiesMap.get(state.hash) || 0
   );
-  // console.log('non end probs', nonEndingStateProbabilities);
 
   return [nonEndingStateProbabilities, -winningStateProbability];
 };
@@ -198,6 +183,7 @@ const getMatrix = (
 ): [number[][], number[]] => {
   const nonEndingStates = _.map(eqs, 'state');
 
+  // TODO: rename
   const x = eqs.map(getRow(winnerPosition, nonEndingStates));
 
   return [x.map(([y]) => y), x.map(([, y]) => y)];

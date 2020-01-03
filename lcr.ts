@@ -4,20 +4,13 @@ import { calculateProbabilities } from './probability';
 
 export const getProblemParameters = (): PositionChips => {
   const {
-    argv: [, , winnerStr, ...positionChipsStrs]
+    argv: [, , ...positionChipsStrs]
   } = process;
 
-  const winnerPosition = parseInt(winnerStr) - 1;
   const chipsAtPosition = _.map(positionChipsStrs, _.parseInt);
 
-  if (!_.isInteger(winnerPosition) && winnerPosition > 0) {
-    throw new Error('Error: <winner> must be a positive integer.');
-  }
-
-  if (chipsAtPosition.length <= winnerPosition) {
-    throw new Error(
-      'Error: Length of <chips>... must be greater than or equal to <winner>.'
-    );
+  if (chipsAtPosition.length <= 1) {
+    throw new Error('Error: Length of <chips>... must be greater than 1.');
   }
 
   if (!chipsAtPosition.every(c => _.isInteger(c) && c >= 0)) {
