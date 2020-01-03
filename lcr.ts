@@ -1,5 +1,5 @@
 import _ from 'lodash';
-import { PositionChips } from './types';
+import { PositionChips, GameState } from './types';
 import { calculateProbabilities } from './probability';
 
 export const getProblemParameters = (): PositionChips => {
@@ -36,10 +36,9 @@ const main = () => {
     console.log(`Position ${i + 1} starts with ${c} chip(s).`)
   );
 
-  const probabilities = calculateProbabilities({
-    turn: 0,
-    chipsAtPosition
-  });
+  const probabilities = calculateProbabilities(
+    new GameState(0, chipsAtPosition)
+  );
 
   probabilities.forEach((p, i) =>
     console.log(

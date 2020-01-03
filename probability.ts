@@ -3,6 +3,7 @@ import _ from 'lodash';
 import {
   PositionChips,
   GameState,
+  Term,
   Expression,
   Equation,
   Die,
@@ -11,34 +12,44 @@ import {
 import { printState } from './logging';
 import { cartesianProduct, mod } from './utils';
 
-export const isWinningState = (
-  winnerPosition: number,
-  state: GameState
-): boolean => {
-  return isEndingState(state) && state.chipsAtPosition[winnerPosition] > 0;
-};
+const isWinningState = _.memoize(
+  (winnerPosition: number, state: GameState): boolean =>
+    isEndingState(state) && state.chipsAtPosition[winnerPosition] > 0,
+  (wp, { hash }) => `${wp}${hash}`
+);
 
-export const isEndingState = (state: GameState): boolean => {
-  return state.chipsAtPosition.filter(Boolean).length === 1;
-};
+const isEndingState = _.memoize(
+  ({ chipsAtPosition }: GameState): boolean =>
+    chipsAtPosition.filter(Boolean).length === 1,
+  ({ hash }) => hash
+);
 
-const getPossibleRolls = (state: GameState): Roll[] => {
+let c = 0;
+const getPossibleRollsByDice = _.memoize((numDice: number): Roll[] =>
+  cartesianProduct(
+    new Array(numDice).fill([Die.Left, Die.Center, Die.Right, Die.Dot])
+  )
+);
+
+// TODO: remove redundant rolls
+const getPossibleRollsByState = (state: GameState): Roll[] => {
   const numChips = state.chipsAtPosition[state.turn];
 
-  return cartesianProduct(
-    new Array(numChips).fill([Die.Left, Die.Center, Die.Right, Die.Dot])
-  );
+  return getPossibleRollsByDice(Math.min(numChips, 3));
 };
 
-const getNextTurn = (currentTurn: number, nextChips: PositionChips): number => {
-  const numPositions = nextChips.length;
+const getNextTurn = _.memoize(
+  (currentTurn: number, nextChips: PositionChips): number => {
+    const numPositions = nextChips.length;
 
-  const adjacentTurn = mod(currentTurn + 1, numPositions);
+    const adjacentTurn = mod(currentTurn + 1, numPositions);
 
-  return nextChips[adjacentTurn]
-    ? adjacentTurn
-    : getNextTurn(adjacentTurn, nextChips);
-};
+    return nextChips[adjacentTurn]
+      ? adjacentTurn
+      : getNextTurn(adjacentTurn, nextChips);
+  },
+  (ct, nc) => `${ct}${nc.join('')}`
+);
 
 const moveChip = (turn: number) => (
   currentChips: PositionChips,
@@ -74,7 +85,7 @@ const getNextState = (currentState: GameState, roll: Roll): GameState => {
 
   const nextTurn = getNextTurn(currentState.turn, nextChips);
 
-  return { turn: nextTurn, chipsAtPosition: nextChips };
+  return new GameState(nextTurn, nextChips);
 };
 
 const dieProbability = {
@@ -84,19 +95,22 @@ const dieProbability = {
   [Die.Dot]: 1 / 2
 };
 
-const getRollProbability = (roll: Roll): number => {
-  return roll.reduce((product, die) => product * dieProbability[die], 1);
-};
+const getRollProbability = _.memoize(
+  (roll: Roll): number =>
+    roll.reduce((product, die) => product * dieProbability[die], 1),
+  r => r.join('')
+);
 
 const getSingleEquation = (state: GameState): Equation => {
-  const rolls = getPossibleRolls(state);
+  const rolls = getPossibleRollsByState(state);
 
-  const expression = rolls.map(roll => ({
-    state: getNextState(state, roll),
-    probability: getRollProbability(roll)
-  }));
+  const expression = new Expression(
+    rolls.map(
+      roll => new Term(getRollProbability(roll), getNextState(state, roll))
+    )
+  );
 
-  return { state, expression };
+  return new Equation(state, expression);
 };
 
 const getRemainingEquations = (
@@ -106,21 +120,28 @@ const getRemainingEquations = (
   return states.reduce((eqs, state) => getEquations(state, eqs), prevEqs);
 };
 
-const getEquations = (state: GameState, prevEqs: Equation[]): Equation[] => {
-  if (isEndingState(state)) {
-    return prevEqs;
-  }
+const getEquations = _.memoize(
+  (state: GameState, prevEqs: Equation[]): Equation[] => {
+    console.log('c', ++c);
+    if (isEndingState(state)) {
+      return prevEqs;
+    }
 
-  if (prevEqs.some(eq => _.isEqual(state, eq.state))) {
-    return prevEqs;
-  }
+    if (prevEqs.some(eq => _.isEqual(state, eq.state))) {
+      return prevEqs;
+    }
 
-  const currentStateEquation = getSingleEquation(state);
+    const currentStateEquation = getSingleEquation(state);
 
-  const nextStates = _.map(currentStateEquation.expression, 'state');
+    const nextStates = _.map(currentStateEquation.expression.terms, 'state');
 
-  return getRemainingEquations(nextStates, [...prevEqs, currentStateEquation]);
-};
+    return getRemainingEquations(nextStates, [
+      ...prevEqs,
+      currentStateEquation
+    ]);
+  },
+  (s, pe) => `${s.hash}${pe.hash}`
+);
 
 const getStateHash = (state: GameState): string => {
   return printState(state);
@@ -129,7 +150,7 @@ const getStateHash = (state: GameState): string => {
 const getExpressionMap = (expr: Expression): Map<string, number> => {
   const map = new Map<string, number>();
 
-  expr.forEach(({ state, probability }) => {
+  expr.terms.forEach(({ state, probability }) => {
     const hash = getStateHash(state);
 
     map.set(hash, probability + (map.get(hash) || 0));
@@ -139,7 +160,7 @@ const getExpressionMap = (expr: Expression): Map<string, number> => {
 };
 
 const getZeroSumExpression = ({ state, expression }: Equation): Expression => {
-  return [...expression, { state, probability: -1 }];
+  return new Expression([...expression.terms, new Term(-1, state)]);
 };
 
 const getRow = (winnerPosition: number, nonEndingStates: GameState[]) => (
@@ -150,12 +171,14 @@ const getRow = (winnerPosition: number, nonEndingStates: GameState[]) => (
   // console.log('0-sum expr', printExpression(expression));
 
   const nonEndingStateProbabilitiesMap = getExpressionMap(
-    expression.filter(({ state }) => !isEndingState(state))
+    new Expression(
+      expression.terms.filter(({ state }) => !isEndingState(state))
+    )
   );
   // console.log(nonEndingStateProbabilitiesMap);
 
   const winningStateProbability = _.sum(
-    expression
+    expression.terms
       .filter(({ state }) => isWinningState(winnerPosition, state))
       .map(({ probability }) => probability)
   );
@@ -191,11 +214,13 @@ const calculateProbability = (startingState: GameState, eqs: Equation[]) => (
 
   const probabilities = lusolve(matrix, vector) as number[];
 
+  console.log('prob');
   return probabilities[startingEqPosition];
 };
 
 export const calculateProbabilities = (startingState: GameState): number[] => {
   const eqs = getEquations(startingState, []);
+  console.log('eqs');
 
   const positions = _.range(startingState.chipsAtPosition.length);
 

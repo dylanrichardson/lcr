@@ -1,7 +1,7 @@
 import _ from 'lodash';
 
 export const cartesianProduct = <T>(arrays: T[][]): T[][] =>
-  _.reduce(
+  _.reduce<T[], T[][]>(
     arrays,
     (a, b) => _.flatten(_.map(a, x => _.map(b, y => (x as T[]).concat([y])))),
     [[]]

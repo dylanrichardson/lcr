@@ -25,7 +25,7 @@ export const printState = ({ turn, chipsAtPosition }: GameState): string => {
 };
 
 export const printExpression = (expr: Expression): string => {
-  return expr
+  return expr.terms
     .map(
       ({ probability, state }) =>
         `${_.round(probability, 2)}*${printState(state)}`
