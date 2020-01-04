@@ -9,7 +9,7 @@ import {
   Die,
   Roll
 } from './types';
-import { cartesianProduct, mod } from './utils';
+import { combsWithRep, mod, product, factorial } from './utils';
 
 const isWinningState = _.memoize(
   (winnerPosition: number, state: GameState): boolean =>
@@ -24,13 +24,13 @@ const isEndingState = _.memoize(
 );
 
 let c = 0;
+
+export const dieFaces = [Die.Left, Die.Center, Die.Right, Die.Dot];
+
 const getPossibleRollsByDice = _.memoize((numDice: number): Roll[] =>
-  cartesianProduct(
-    new Array(numDice).fill([Die.Left, Die.Center, Die.Right, Die.Dot])
-  )
+  combsWithRep(numDice, dieFaces)
 );
 
-// TODO: remove redundant rolls
 const getPossibleRollsByState = (state: GameState): Roll[] => {
   const numChips = state.chipsAtPosition[state.turn];
 
@@ -94,9 +94,28 @@ const dieProbability = {
   [Die.Dot]: 1 / 2
 };
 
+const getDieProbability = _.memoize((die: Die): number => dieProbability[die]);
+
+const numInARow = (roll: Roll) => (die: Die): number => {
+  const lastDieIndex = roll.lastIndexOf(die);
+
+  if (lastDieIndex < 0) {
+    return 0;
+  }
+
+  return lastDieIndex - roll.indexOf(die) + 1;
+};
+
+const numRollPermutations = (roll: Roll): number => {
+  const numDice = roll.length;
+  const numDuplicates = dieFaces.map(numInARow(roll));
+  const numDupFactorials = numDuplicates.map(factorial);
+  return factorial(numDice) / product(numDupFactorials);
+};
+
 const getRollProbability = _.memoize(
   (roll: Roll): number =>
-    roll.reduce((product, die) => product * dieProbability[die], 1),
+    numRollPermutations(roll) * product(roll.map(getDieProbability)),
   r => r.join('')
 );
 
