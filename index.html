@@ -1,0 +1,2429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Left Center Right - Markov Chain Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.28.1/cytoscape.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/webcola@3.4.0/WebCola.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cytoscape-cola@2.5.1/cytoscape-cola.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            padding: 20px 20px 60px 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto 40px auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px 30px 50px 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: visible;
+        }
+
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-style: italic;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .controls {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+
+        input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .game-state {
+            position: relative;
+            width: 1000px;
+            height: 1000px;
+            margin: 50px auto 100px auto;
+            background: radial-gradient(circle, rgba(102, 126, 234, 0.05) 0%, rgba(118, 75, 162, 0.05) 100%);
+            border-radius: 50%;
+            border: 3px dashed rgba(102, 126, 234, 0.2);
+            overflow: visible;
+        }
+
+        .game-state::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 800px;
+            height: 800px;
+            border: 2px dashed rgba(102, 126, 234, 0.15);
+            border-radius: 50%;
+        }
+
+        .game-state::after {
+            content: '↺ COUNTER-CLOCKWISE';
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #667eea;
+            background: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.2);
+            z-index: 10;
+        }
+
+        .game-state-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .player {
+            position: absolute !important;
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            min-width: 150px;
+            width: 150px;
+            transition: all 0.3s;
+            border: 3px solid transparent;
+            transform: translate(-50%, -50%) !important;
+            box-sizing: border-box;
+        }
+
+        .player.active {
+            background: #e3f2fd;
+            border-color: #2196F3;
+            box-shadow: 0 5px 15px rgba(33, 150, 243, 0.3);
+        }
+
+        .player.winner {
+            background: #c8e6c9;
+            border-color: #4CAF50;
+            animation: winner-pulse 1s infinite;
+        }
+
+        @keyframes winner-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .player.eliminated {
+            opacity: 0.4;
+        }
+
+        .player-name {
+            font-weight: bold;
+            font-size: 18px;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .chips {
+            font-size: 24px;
+            margin: 10px 0;
+        }
+
+        .chip {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            border-radius: 50%;
+            margin: 2px;
+            border: 2px solid #daa520;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .center-pot {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 35px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+            border-radius: 50%;
+            color: white;
+            width: 180px;
+            height: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 10px 30px rgba(238, 90, 111, 0.4);
+        }
+
+        .center-pot h3 {
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+
+        .center-chips {
+            font-size: 36px;
+            font-weight: bold;
+        }
+
+        .game-log {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 40px;
+        }
+
+        .log-entry {
+            padding: 8px;
+            margin-bottom: 5px;
+            border-left: 3px solid #667eea;
+            padding-left: 10px;
+        }
+
+        .log-entry.special {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 40px 0 20px 0;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .probability-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .probability-table th,
+        .probability-table td {
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #e0e0e0;
+        }
+
+        .probability-table th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+        }
+
+        .probability-table tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+
+        .formula {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+            overflow-x: auto;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .dice-roll {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin: 15px 0;
+        }
+
+        .die {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border: 3px solid #333;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+
+        .die.rolling {
+            animation: roll 0.5s ease-in-out;
+        }
+
+        @keyframes roll {
+            0% { transform: rotate(0deg) scale(1); }
+            25% { transform: rotate(90deg) scale(1.1); }
+            50% { transform: rotate(180deg) scale(1); }
+            75% { transform: rotate(270deg) scale(1.1); }
+            100% { transform: rotate(360deg) scale(1); }
+        }
+
+        .die.left { background: linear-gradient(135deg, #90caf9 0%, #64b5f6 100%); color: white; }
+        .die.right { background: linear-gradient(135deg, #ce93d8 0%, #ba68c8 100%); color: white; }
+        .die.center { background: linear-gradient(135deg, #ef5350 0%, #e53935 100%); color: white; }
+        .die.dot { background: linear-gradient(135deg, #a5d6a7 0%, #81c784 100%); color: white; }
+
+        .dice-container {
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            margin: 40px 0 20px 0;
+            padding: 25px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+            border-radius: 15px;
+            border: 2px dashed rgba(102, 126, 234, 0.3);
+            box-shadow: inset 0 2px 10px rgba(102, 126, 234, 0.1);
+        }
+
+        .chip.flying {
+            position: fixed;
+            z-index: 1000;
+            pointer-events: none;
+            width: 40px;
+            height: 40px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.8), 0 0 40px rgba(255, 215, 0, 0.5);
+            filter: brightness(1.3);
+        }
+
+        .chip-trail {
+            position: fixed;
+            z-index: 999;
+            pointer-events: none;
+            width: 30px;
+            height: 30px;
+            background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+            border-radius: 50%;
+            border: 2px solid #daa520;
+            animation: trail-fade 0.5s ease-out forwards;
+        }
+
+        @keyframes trail-fade {
+            0% {
+                opacity: 0.6;
+                transform: scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+        }
+
+        .movement-arrow {
+            position: fixed;
+            z-index: 998;
+            pointer-events: none;
+            font-size: 48px;
+            animation: arrow-pulse 0.8s ease-in-out infinite;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
+
+        @keyframes arrow-pulse {
+            0%, 100% {
+                opacity: 0.7;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 1;
+                transform: scale(1.2);
+            }
+        }
+
+        .player.chip-leaving {
+            animation: pulse-out 0.3s ease-out;
+        }
+
+        .player.chip-arriving {
+            animation: pulse-in 0.3s ease-out;
+        }
+
+        .center-pot.chip-arriving {
+            animation: pulse-in-center 0.3s ease-out;
+        }
+
+        @keyframes pulse-out {
+            0%, 100% { transform: translate(-50%, -50%) scale(1) !important; }
+            50% { transform: translate(-50%, -50%) scale(0.95) !important; }
+        }
+
+        @keyframes pulse-in {
+            0%, 100% { transform: translate(-50%, -50%) scale(1) !important; }
+            50% { transform: translate(-50%, -50%) scale(1.05) !important; }
+        }
+
+        @keyframes pulse-in-center {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            50% { transform: translate(-50%, -50%) scale(1.08); }
+        }
+
+        .chip-count-change {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+            font-weight: bold;
+            animation: fade-up 1s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes fade-up {
+            0% {
+                transform: translateY(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-30px);
+                opacity: 0;
+            }
+        }
+
+        .chip-count-change.positive {
+            color: #4CAF50;
+        }
+
+        .chip-count-change.negative {
+            color: #f44336;
+        }
+
+        .comparison-table {
+            margin: 20px 0;
+        }
+
+        .comparison-table th {
+            background: #764ba2;
+        }
+
+        .diff-positive {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        .diff-negative {
+            color: #f44336;
+            font-weight: bold;
+        }
+
+        canvas {
+            max-width: 100%;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 1050px) {
+            .game-state {
+                width: 700px;
+                height: 700px;
+                margin: 30px auto 80px auto;
+            }
+
+            .game-state::before {
+                width: 560px;
+                height: 560px;
+            }
+
+            .game-state::after {
+                font-size: 12px;
+                bottom: 15px;
+            }
+
+            .player {
+                width: 110px;
+                min-width: 110px;
+                padding: 12px;
+            }
+
+            .center-pot {
+                width: 140px;
+                height: 140px;
+                padding: 25px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .game-state {
+                width: 550px;
+                height: 550px;
+                margin: 30px auto 70px auto;
+            }
+
+            .game-state::before {
+                width: 440px;
+                height: 440px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .game-state {
+                width: 450px;
+                height: 450px;
+                margin: 20px auto 60px auto;
+            }
+
+            .game-state::before {
+                width: 360px;
+                height: 360px;
+            }
+
+            .game-state::after {
+                font-size: 10px;
+                bottom: 10px;
+                padding: 5px 10px;
+            }
+
+            .player {
+                width: 90px;
+                min-width: 90px;
+                padding: 8px;
+                font-size: 12px;
+            }
+
+            .player-name {
+                font-size: 14px;
+            }
+
+            .center-pot {
+                width: 110px;
+                height: 110px;
+                padding: 15px;
+            }
+
+            .center-pot h3 {
+                font-size: 16px;
+                margin-bottom: 8px;
+            }
+
+            .center-chips {
+                font-size: 24px !important;
+            }
+
+            .chip {
+                width: 22px;
+                height: 22px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Left Center Right</h1>
+        <div class="subtitle">Markov Chain Analysis & Visualization <span style="font-size: 10px; color: #999;">(v8.5 Improved Layout)</span></div>
+
+        <h2 style="margin: 0 0 30px 0;">Game Simulator</h2>
+
+        <!-- Game Simulator -->
+        <div id="simulator">
+            <!-- Game Setup Controls -->
+            <div class="controls" style="margin-bottom: 30px;">
+                <div class="control-group">
+                    <label>Number of Players:</label>
+                    <input type="number" id="numPlayers" min="2" value="2">
+                </div>
+                <div class="control-group">
+                    <label>Starting Chips per Player:</label>
+                    <input type="number" id="startingChips" min="1" max="10" value="1">
+                </div>
+                <div class="control-group">
+                    <label>Animation Speed:</label>
+                    <select id="animSpeed">
+                        <option value="100">Very Fast</option>
+                        <option value="300">Fast</option>
+                        <option value="500" selected>Medium</option>
+                        <option value="1000">Slow</option>
+                        <option value="2000">Very Slow</option>
+                    </select>
+                </div>
+                <button onclick="startNewGame()">New Game</button>
+            </div>
+
+            <div class="game-state" id="gameState"></div>
+
+            <div class="dice-container" id="diceContainer">
+                <div style="color: #999; font-style: italic;">Dice will appear here when rolling...</div>
+            </div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-label">Turn Number</div>
+                    <div class="stat-value" id="turnNumber">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Active Players</div>
+                    <div class="stat-value" id="activePlayers">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Chips in Play</div>
+                    <div class="stat-value" id="totalChips">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Controls (moved here, between game and graph) -->
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 10px; margin: 30px 0; text-align: center;">
+            <div style="margin-bottom: 10px; font-weight: 600; color: #667eea; font-size: 16px;">Game Controls</div>
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button onclick="playNextTurn()" id="nextBtn">Next Turn</button>
+                <button onclick="autoPlay()" id="autoBtn">Auto Play</button>
+                <button onclick="stopAutoPlay()" id="stopBtn" disabled>Stop</button>
+            </div>
+        </div>
+
+        <!-- Markov Chain Visualization -->
+        <div id="markovChain">
+            <div style="background: #f8f9fa; padding: 30px; border-radius: 15px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0; color: #667eea;">Complete Markov Chain State Graph</h2>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; color: #666;">
+                            <input type="checkbox" id="showAllLabels" onchange="toggleAllEdgeLabels()" style="width: 18px; height: 18px; cursor: pointer;">
+                            <span>Show All Labels</span>
+                        </label>
+                        <button onclick="resetGraphView()" style="padding: 8px 16px; font-size: 14px;">Reset View</button>
+                        <button onclick="fitGraphToView()" style="padding: 8px 16px; font-size: 14px;">Fit to Screen</button>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 20px;">
+                    <!-- Main graph -->
+                    <div id="cy" style="flex: 1; height: 1000px; border: 3px solid #e0e0e0; border-radius: 15px; background: white; box-shadow: 0 5px 20px rgba(0,0,0,0.1); position: relative;">
+                        <div id="graphStatus" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(255,255,255,0.95); padding: 20px 40px; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.2); display: none; z-index: 1000;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 18px; font-weight: bold; color: #667eea; margin-bottom: 10px;">Building State Graph...</div>
+                                <div style="font-size: 14px; color: #666;">This may take a few seconds</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Transitions panel -->
+                    <div id="transitionsPanel" style="width: 350px; background: white; border: 3px solid #e0e0e0; border-radius: 15px; padding: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); overflow-y: auto; max-height: 1000px;">
+                        <h3 style="margin: 0 0 15px 0; color: #667eea; font-size: 18px;">State Transitions</h3>
+                        <div id="transitionsContent" style="font-size: 13px; color: #666;">
+                            <em>Current state and possible transitions will appear here</em>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Legend (moved to bottom) -->
+        <div style="background: #f8f9fa; padding: 30px; border-radius: 15px; margin-top: 30px;">
+            <h3 style="margin: 0 0 20px 0; color: #667eea;">Graph Legend & Guide</h3>
+
+            <div style="background: white; border-radius: 10px; padding: 20px;">
+                <p style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    <strong>Complete state space visualization.</strong> Each node represents a game state.
+                    <strong style="color: #FFC107;">Yellow arrows</strong> show possible transitions from current state (see table on right).
+                    <strong style="color: #FF6B6B;">Red arrows</strong> show the path taken through the game (persist throughout).
+                    <strong>Hover over any arrow</strong> to see the dice roll and probability. Use mouse wheel to zoom, drag to pan.
+                </p>
+
+                <div style="display: grid; grid-template-columns: auto 1fr; gap: 20px;">
+                    <div>
+                        <strong style="color: #667eea; margin-bottom: 8px; display: block;">Node Colors:</strong>
+                        <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 30px; height: 30px; background: #2196F3; border: 3px solid #1976D2; border-radius: 50%;"></div>
+                                <span><strong>Current State</strong> - current game position</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 30px; height: 30px; background: #4CAF50; border: 3px solid #388E3C; border-radius: 50%;"></div>
+                                <span><strong>Winning State</strong> - only one player has chips</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 30px; height: 30px; background: #4CAF50; border: 4px double #2196F3; border-radius: 50%; box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);"></div>
+                                <span><strong>Current Winning State</strong> - game over!</span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 30px; height: 30px; background: #bbb; border: 3px solid #999; border-radius: 50%;"></div>
+                                <span><strong>Other States</strong> - reachable states</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <strong style="color: #667eea; margin-bottom: 8px; display: block;">State Format & Interactions:</strong>
+                        <div style="font-size: 13px; color: #666;">
+                            <div style="margin-bottom: 6px;"><code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">3,3,3,3</code> = chip counts for each player (Player 1, 2, 3, 4)</div>
+                            <div style="margin-bottom: 6px;"><code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">P2</code> = current player's turn</div>
+                            <div style="margin-bottom: 6px;"><strong>Hover over arrows</strong> to see: <code style="background: #f0f0f0; padding: 2px 6px; border-radius: 3px;">LCD</code> (dice roll: L=Left, R=Right, C=Center, D=Dot) and probability %</div>
+                            <div style="margin-bottom: 6px;"><strong>Yellow arrows (hover):</strong> Show possible transitions with probability</div>
+                            <div style="margin-bottom: 6px;"><strong>Red arrows (hover):</strong> Show which dice roll was actually rolled during the game</div>
+                            <div style="margin-bottom: 6px;"><strong>Arrow thickness & opacity:</strong> Thicker/darker = higher probability</div>
+                            <div style="margin-bottom: 6px;"><strong>Watch the animation:</strong> When you play a turn, a red marker flies along the yellow arrow, turning it red permanently</div>
+                            <div><strong>Click nodes/arrows</strong> to select and highlight them</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Log (moved to bottom) -->
+        <div style="margin-top: 30px;">
+            <h3 style="margin: 0 0 15px 0; color: #667eea;">Game Log</h3>
+            <div class="game-log" id="gameLog"></div>
+        </div>
+
+    </div>
+
+    <script>
+        // Game state
+        let game = {
+            players: [],
+            centerPot: 0,
+            currentPlayer: 0,
+            turnNumber: 0,
+            gameOver: false,
+            log: [],
+            pathTaken: [] // Array of edge keys (source|target) showing path through state space
+        };
+
+        let autoPlayInterval = false;
+        let cy = null; // Cytoscape instance
+        let lastGraphConfig = null; // Track last graph configuration (player count, starting chips)
+        let lastStateKey = null; // Track last state for animation
+
+        // Initialize game
+        function startNewGame() {
+            const numPlayers = parseInt(document.getElementById('numPlayers').value);
+            const startingChips = parseInt(document.getElementById('startingChips').value);
+
+            game.players = [];
+            for (let i = 0; i < numPlayers; i++) {
+                game.players.push({
+                    id: i,
+                    name: `Player ${i + 1}`,
+                    chips: startingChips
+                });
+            }
+
+            game.centerPot = 0;
+            game.currentPlayer = 0;
+            game.turnNumber = 0;
+            game.gameOver = false;
+            game.log = [];
+            game.pathTaken = [];
+
+            // Reset transition tracking
+            lastStateKey = null;
+
+            // Check if we need to rebuild the graph (different config)
+            const currentConfig = `${numPlayers}-${startingChips}`;
+            if (lastGraphConfig !== currentConfig) {
+                lastGraphConfig = currentConfig;
+                // Initialize cytoscape if needed
+                if (!cy) {
+                    initializeCytoscape();
+                }
+                // Rebuild graph
+                buildCompleteStateGraph();
+            }
+
+            // Clear dice container
+            document.getElementById('diceContainer').innerHTML = '<div style="color: #999; font-style: italic;">Dice will appear here when rolling...</div>';
+
+            // Clear game log
+            document.getElementById('gameLog').innerHTML = '';
+
+            updateDisplay();
+            addLog(`New game started with ${numPlayers} players, ${startingChips} chips each`);
+        }
+
+        // Roll dice
+        function rollDice(numDice) {
+            const outcomes = ['L', 'R', 'C', '•', '•', '•']; // Dot appears 3 times (50%)
+            const rolls = [];
+            for (let i = 0; i < numDice; i++) {
+                rolls.push(outcomes[Math.floor(Math.random() * 6)]);
+            }
+            return rolls;
+        }
+
+        // Play one turn (with animations)
+        async function playNextTurn() {
+            if (game.gameOver) {
+                addLog('Game is over! Start a new game.');
+                return;
+            }
+
+            const player = game.players[game.currentPlayer];
+            game.turnNumber++;
+
+            // Skip players with no chips (but they stay in the game)
+            if (player.chips === 0) {
+                addLog(`${player.name} has no chips, skipping turn`);
+                const beforeStateKey = game.players.map(p => p.chips).join(',') + '|' + game.currentPlayer;
+                game.currentPlayer = (game.currentPlayer + 1) % game.players.length;
+                const afterStateKey = game.players.map(p => p.chips).join(',') + '|' + game.currentPlayer;
+                updateDisplay(beforeStateKey, afterStateKey);
+                return;
+            }
+
+            // Capture current state before any changes (for logging and animation)
+            const currentState = game.players.map(p => p.chips).join(',') + ' | P' + (game.currentPlayer + 1);
+            const beforeStateKey = game.players.map(p => p.chips).join(',') + '|' + game.currentPlayer;
+
+            // Disable buttons during animation
+            disableButtons(true);
+
+            // Roll dice (max 3)
+            const numDice = Math.min(player.chips, 3);
+            const rolls = rollDice(numDice);
+
+            // Show rolling animation
+            await showDiceRolling(rolls);
+
+            // Process each roll with animations
+            for (let i = 0; i < rolls.length; i++) {
+                const roll = rolls[i];
+
+                if (roll === 'L') {
+                    // Pass to left (next player in counter-clockwise turn order)
+                    const leftPlayer = (game.currentPlayer + 1) % game.players.length;
+                    await animateChipMovement(game.currentPlayer, leftPlayer);
+                    game.players[leftPlayer].chips++;
+                    player.chips--;
+                    updateDisplay(null, null, false); // Don't update Markov chain during animation
+                } else if (roll === 'R') {
+                    // Pass to right (previous player in counter-clockwise turn order)
+                    const rightPlayer = (game.currentPlayer - 1 + game.players.length) % game.players.length;
+                    await animateChipMovement(game.currentPlayer, rightPlayer);
+                    game.players[rightPlayer].chips++;
+                    player.chips--;
+                    updateDisplay(null, null, false); // Don't update Markov chain during animation
+                } else if (roll === 'C') {
+                    // To center
+                    await animateChipMovement(game.currentPlayer, 'center');
+                    game.centerPot++;
+                    player.chips--;
+                    updateDisplay(null, null, false); // Don't update Markov chain during animation
+                }
+                // Dot (•) means keep the chip - no action needed
+
+                // Small delay between chip movements (reduced since animation is longer)
+                if (i < rolls.length - 1) {
+                    await sleep(100);
+                }
+            }
+
+            // Move to next player (always increment to show whose turn it would be)
+            game.currentPlayer = (game.currentPlayer + 1) % game.players.length;
+
+            // Capture the state AFTER all changes
+            const afterStateKey = game.players.map(p => p.chips).join(',') + '|' + game.currentPlayer;
+
+            // Convert actual rolls to canonical form (L, R, C, D order to match graph)
+            const countL = rolls.filter(r => r === 'L').length;
+            const countR = rolls.filter(r => r === 'R').length;
+            const countC = rolls.filter(r => r === 'C').length;
+            const countD = rolls.filter(r => r === '•').length;
+            const actualRoll = 'L'.repeat(countL) + 'R'.repeat(countR) + 'C'.repeat(countC) + 'D'.repeat(countD);
+
+            // Log the state transition
+            const nextState = game.players.map(p => p.chips).join(',') + ' | P' + (game.currentPlayer + 1);
+            addLog(`State: ${currentState} → Rolled: ${rolls.join(' ')} → ${nextState}`);
+
+            // Check for winner AFTER incrementing player (to show final state correctly)
+            const playersWithChips = game.players.filter(p => p.chips > 0);
+            if (playersWithChips.length === 1) {
+                game.gameOver = true;
+                addLog(`🎉 ${playersWithChips[0].name} wins the game!`, true);
+            }
+
+            // Update display with explicit state keys for animation, including actual roll
+            updateDisplay(beforeStateKey, afterStateKey, true, actualRoll);
+            disableButtons(false);
+        }
+
+        // Helper function for delays
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        // Show dice rolling animation
+        async function showDiceRolling(rolls) {
+            const diceContainer = document.getElementById('diceContainer');
+            diceContainer.innerHTML = '';
+
+            // Create dice elements
+            const diceElements = rolls.map((roll, idx) => {
+                const die = document.createElement('div');
+                die.className = 'die rolling';
+                die.textContent = '?';
+                diceContainer.appendChild(die);
+                return { element: die, result: roll };
+            });
+
+            // Wait for rolling animation
+            await sleep(500);
+
+            // Reveal results one by one
+            for (let i = 0; i < diceElements.length; i++) {
+                const { element, result } = diceElements[i];
+                element.classList.remove('rolling');
+                element.textContent = result;
+
+                // Add color class
+                if (result === 'L') element.classList.add('left');
+                else if (result === 'R') element.classList.add('right');
+                else if (result === 'C') element.classList.add('center');
+                else element.classList.add('dot');
+
+                await sleep(200);
+            }
+
+            await sleep(300);
+        }
+
+        // Animate chip movement with arc and trail
+        async function animateChipMovement(fromPlayer, toPlayer) {
+            const fromElement = document.getElementById(`player-${fromPlayer}`);
+            const toElement = toPlayer === 'center'
+                ? document.getElementById('centerPot')
+                : document.getElementById(`player-${toPlayer}`);
+
+            if (!fromElement || !toElement) return;
+
+            // Add visual feedback
+            fromElement.classList.add('chip-leaving');
+            setTimeout(() => fromElement.classList.remove('chip-leaving'), 300);
+
+            const fromRect = fromElement.getBoundingClientRect();
+            const toRect = toElement.getBoundingClientRect();
+
+            // Calculate direction for arrow
+            const deltaX = toRect.left - fromRect.left;
+            const deltaY = toRect.top - fromRect.top;
+            const angle = Math.atan2(deltaY, deltaX);
+
+            // Determine arrow based on angle
+            let arrowChar = '→';
+            if (angle > -Math.PI/4 && angle < Math.PI/4) arrowChar = '→';
+            else if (angle >= Math.PI/4 && angle < 3*Math.PI/4) arrowChar = '↓';
+            else if (angle >= 3*Math.PI/4 || angle < -3*Math.PI/4) arrowChar = '←';
+            else arrowChar = '↑';
+
+            // Create arrow indicator with label
+            const arrowContainer = document.createElement('div');
+            arrowContainer.style.position = 'fixed';
+            arrowContainer.style.left = `${fromRect.left + fromRect.width / 2}px`;
+            arrowContainer.style.top = `${fromRect.top - 70}px`;
+            arrowContainer.style.transform = 'translateX(-50%)';
+            arrowContainer.style.zIndex = '998';
+            arrowContainer.style.pointerEvents = 'none';
+            arrowContainer.style.textAlign = 'center';
+
+            const arrow = document.createElement('div');
+            arrow.className = 'movement-arrow';
+            arrow.textContent = arrowChar;
+            arrow.style.color = toPlayer === 'center' ? '#ef5350' : '#667eea';
+
+            const label = document.createElement('div');
+            label.style.fontSize = '14px';
+            label.style.fontWeight = 'bold';
+            label.style.color = toPlayer === 'center' ? '#ef5350' : '#667eea';
+            label.style.textShadow = '0 0 5px rgba(255, 255, 255, 0.8)';
+            label.style.marginTop = '5px';
+            label.style.animation = 'arrow-pulse 0.8s ease-in-out infinite';
+
+            if (toPlayer === 'center') {
+                label.textContent = '→ CENTER';
+            } else if (toPlayer === (fromPlayer + 1) % game.players.length) {
+                label.textContent = '← LEFT';
+            } else {
+                label.textContent = 'RIGHT →';
+            }
+
+            arrowContainer.appendChild(arrow);
+            arrowContainer.appendChild(label);
+            document.body.appendChild(arrowContainer);
+
+            setTimeout(() => arrowContainer.remove(), 800);
+
+            // Calculate positions
+            const startX = fromRect.left + fromRect.width / 2 - 20; // Center the 40px chip
+            const startY = fromRect.top + fromRect.height / 2 - 20;
+            const endX = toRect.left + toRect.width / 2 - 20;
+            const endY = toRect.top + toRect.height / 2 - 20;
+
+            // Create flying chip
+            const chip = document.createElement('div');
+            chip.className = 'chip flying';
+            chip.style.left = `${startX}px`;
+            chip.style.top = `${startY}px`;
+            document.body.appendChild(chip);
+
+            // Animate along an arc path (scale with animation speed setting)
+            const speedSetting = parseInt(document.getElementById('animSpeed').value);
+            const duration = Math.max(600, Math.min(speedSetting * 1.5, 1500)); // Between 600ms and 1500ms
+            const startTime = Date.now();
+
+            // Create trail effect
+            const trailInterval = setInterval(() => {
+                const trailChip = document.createElement('div');
+                trailChip.className = 'chip-trail';
+                const currentRect = chip.getBoundingClientRect();
+                trailChip.style.left = `${currentRect.left + 5}px`;
+                trailChip.style.top = `${currentRect.top + 5}px`;
+                document.body.appendChild(trailChip);
+
+                setTimeout(() => trailChip.remove(), 500);
+            }, 50);
+
+            // Animate with arc
+            const animate = () => {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Ease-in-out curve
+                const easeProgress = progress < 0.5
+                    ? 4 * progress * progress * progress
+                    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+
+                // Calculate arc (parabolic path)
+                const currentX = startX + (endX - startX) * easeProgress;
+                const currentY = startY + (endY - startY) * easeProgress;
+
+                // Add arc height (negative for upward arc)
+                const arcHeight = -150; // Height of arc
+                const arc = arcHeight * Math.sin(progress * Math.PI);
+
+                chip.style.left = `${currentX}px`;
+                chip.style.top = `${currentY + arc}px`;
+
+                // Scale effect
+                const scale = 1 + Math.sin(progress * Math.PI) * 0.5;
+                chip.style.transform = `scale(${scale})`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    clearInterval(trailInterval);
+                    chip.style.opacity = '0';
+                    chip.style.transform = 'scale(0.5)';
+
+                    // Add arrival feedback
+                    toElement.classList.add('chip-arriving');
+                    setTimeout(() => toElement.classList.remove('chip-arriving'), 300);
+
+                    setTimeout(() => chip.remove(), 300);
+                }
+            };
+
+            requestAnimationFrame(animate);
+            await sleep(duration + 100);
+        }
+
+        // Disable/enable buttons
+        function disableButtons(disabled) {
+            document.getElementById('nextBtn').disabled = disabled;
+            if (!disabled && !autoPlayInterval) {
+                document.getElementById('autoBtn').disabled = false;
+            }
+        }
+
+        // Auto play
+        async function autoPlay() {
+            document.getElementById('autoBtn').disabled = true;
+            document.getElementById('stopBtn').disabled = false;
+            document.getElementById('nextBtn').disabled = true;
+
+            autoPlayInterval = true; // Use as flag instead of interval
+
+            while (autoPlayInterval && !game.gameOver) {
+                await playNextTurn();
+                if (!autoPlayInterval) break;
+                // Small delay between turns
+                const speed = parseInt(document.getElementById('animSpeed').value);
+                await sleep(Math.min(speed / 2, 500));
+            }
+
+            if (game.gameOver) {
+                stopAutoPlay();
+            }
+        }
+
+        function stopAutoPlay() {
+            autoPlayInterval = false;
+            document.getElementById('autoBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('nextBtn').disabled = false;
+        }
+
+        // Update display
+        function updateDisplay(beforeStateKey = null, afterStateKey = null, updateMarkovChain = true, actualRoll = null) {
+            const gameStateDiv = document.getElementById('gameState');
+            gameStateDiv.innerHTML = '';
+
+            // Calculate circle radius and center (responsive)
+            let containerSize = 1000;
+            let radius = 380;
+
+            if (window.innerWidth <= 1050) {
+                containerSize = 700;
+                radius = 265;
+            }
+            if (window.innerWidth <= 768) {
+                containerSize = 550;
+                radius = 210;
+            }
+            if (window.innerWidth <= 600) {
+                containerSize = 450;
+                radius = 170;
+            }
+
+            const centerX = containerSize / 2;
+            const centerY = containerSize / 2;
+
+            // Add center pot first
+            const centerDiv = document.createElement('div');
+            centerDiv.className = 'center-pot';
+            centerDiv.id = 'centerPot';
+            centerDiv.innerHTML = `
+                <h3>Center Pot</h3>
+                <div class="center-chips">${game.centerPot}</div>
+                <div>chips</div>
+            `;
+            gameStateDiv.appendChild(centerDiv);
+
+            // Display players in a circle
+            game.players.forEach((player, idx) => {
+                const playerDiv = document.createElement('div');
+                playerDiv.className = 'player';
+                playerDiv.id = `player-${idx}`;
+
+                // Calculate position on circle
+                // Start from top (12 o'clock) and go clockwise
+                const angle = (idx / game.players.length) * 2 * Math.PI - Math.PI / 2;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
+
+                playerDiv.style.left = `${x}px`;
+                playerDiv.style.top = `${y}px`;
+
+                if (idx === game.currentPlayer && !game.gameOver) {
+                    playerDiv.classList.add('active');
+                }
+
+                if (game.gameOver && player.chips > 0) {
+                    playerDiv.classList.add('winner');
+                }
+
+                if (player.chips === 0 && !game.gameOver) {
+                    playerDiv.classList.add('eliminated');
+                }
+
+                playerDiv.innerHTML = `
+                    <div class="player-name">${player.name}</div>
+                    <div class="chips">
+                        ${Array(player.chips).fill('').map(() => '<span class="chip"></span>').join('')}
+                    </div>
+                    <div>${player.chips} chips</div>
+                `;
+
+                gameStateDiv.appendChild(playerDiv);
+            });
+
+            // Update stats
+            document.getElementById('turnNumber').textContent = game.turnNumber;
+            document.getElementById('activePlayers').textContent = game.players.filter(p => p.chips > 0).length;
+            document.getElementById('totalChips').textContent = game.players.reduce((sum, p) => sum + p.chips, 0);
+
+            // Update Markov chain if visible (pass explicit state keys for animation)
+            // Only update if requested (don't update during intermediate chip animations)
+            if (updateMarkovChain) {
+                updateMarkovChainIfVisible(beforeStateKey, afterStateKey, actualRoll);
+            }
+        }
+
+        // Add to log
+        function addLog(message, special = false) {
+            game.log.push({ message, special });
+            const logDiv = document.getElementById('gameLog');
+            const entry = document.createElement('div');
+            entry.className = special ? 'log-entry special' : 'log-entry';
+            entry.textContent = message;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Calculate transition probabilities
+        function factorial(n) {
+            if (n <= 1) return 1;
+            return n * factorial(n - 1);
+        }
+
+        function multinomialProbability(d, l, r, c) {
+            const dots = d - l - r - c;
+            if (dots < 0) return 0;
+
+            const coefficient = factorial(d) / (factorial(l) * factorial(r) * factorial(c) * factorial(dots));
+            const probability = coefficient * Math.pow(1/6, l) * Math.pow(1/6, r) * Math.pow(1/6, c) * Math.pow(1/2, dots);
+
+            return probability;
+        }
+
+        function calculateProbabilities() {
+            const numDice = parseInt(document.getElementById('numDice').value);
+            const outputDiv = document.getElementById('probabilityOutput');
+
+            let html = '<table class="probability-table"><thead><tr><th>Left (L)</th><th>Right (R)</th><th>Center (C)</th><th>Dots (•)</th><th>Probability</th><th>Percentage</th></tr></thead><tbody>';
+
+            const outcomes = [];
+
+            // Generate all possible outcomes
+            for (let l = 0; l <= numDice; l++) {
+                for (let r = 0; r <= numDice - l; r++) {
+                    for (let c = 0; c <= numDice - l - r; c++) {
+                        const dots = numDice - l - r - c;
+                        const prob = multinomialProbability(numDice, l, r, c);
+                        outcomes.push({ l, r, c, dots, prob });
+                    }
+                }
+            }
+
+            // Sort by probability (descending)
+            outcomes.sort((a, b) => b.prob - a.prob);
+
+            outcomes.forEach(outcome => {
+                html += `<tr>
+                    <td>${outcome.l}</td>
+                    <td>${outcome.r}</td>
+                    <td>${outcome.c}</td>
+                    <td>${outcome.dots}</td>
+                    <td>${outcome.prob.toFixed(6)}</td>
+                    <td>${(outcome.prob * 100).toFixed(2)}%</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table>';
+
+            // Add verification
+            const totalProb = outcomes.reduce((sum, o) => sum + o.prob, 0);
+            html += `<div class="formula">Total probability: ${totalProb.toFixed(6)} (should be 1.0)</div>`;
+
+            // Add expected values
+            const expectedLeft = outcomes.reduce((sum, o) => sum + o.l * o.prob, 0);
+            const expectedRight = outcomes.reduce((sum, o) => sum + o.r * o.prob, 0);
+            const expectedCenter = outcomes.reduce((sum, o) => sum + o.c * o.prob, 0);
+            const expectedDots = outcomes.reduce((sum, o) => sum + o.dots * o.prob, 0);
+
+            html += `<div class="formula">
+                Expected values for ${numDice} dice:<br>
+                - Left: ${expectedLeft.toFixed(3)} (theoretical: ${(numDice/6).toFixed(3)})<br>
+                - Right: ${expectedRight.toFixed(3)} (theoretical: ${(numDice/6).toFixed(3)})<br>
+                - Center: ${expectedCenter.toFixed(3)} (theoretical: ${(numDice/6).toFixed(3)})<br>
+                - Dots: ${expectedDots.toFixed(3)} (theoretical: ${(numDice/2).toFixed(3)})<br>
+                - Total chips lost per turn: ${(expectedLeft + expectedRight + expectedCenter).toFixed(3)}
+            </div>`;
+
+            outputDiv.innerHTML = html;
+        }
+
+        // Monte Carlo simulation
+        function simulateOneGame(numPlayers, startingChips) {
+            const players = Array(numPlayers).fill(0).map(() => startingChips);
+            let currentPlayer = 0;
+            let turns = 0;
+            const maxTurns = 10000; // Prevent infinite loops
+
+            while (turns < maxTurns) {
+                turns++;
+
+                // Check for winner
+                const playersWithChips = players.filter(c => c > 0).length;
+                if (playersWithChips === 1) {
+                    // Find winner
+                    for (let i = 0; i < players.length; i++) {
+                        if (players[i] > 0) return i;
+                    }
+                }
+
+                // Skip players with no chips
+                if (players[currentPlayer] === 0) {
+                    currentPlayer = (currentPlayer + 1) % numPlayers;
+                    continue;
+                }
+
+                // Roll dice
+                const numDice = Math.min(players[currentPlayer], 3);
+                const rolls = rollDice(numDice);
+
+                // Process rolls
+                rolls.forEach(roll => {
+                    if (roll === 'L') {
+                        const leftPlayer = (currentPlayer + 1) % numPlayers;
+                        players[leftPlayer]++;
+                        players[currentPlayer]--;
+                    } else if (roll === 'R') {
+                        const rightPlayer = (currentPlayer - 1 + numPlayers) % numPlayers;
+                        players[rightPlayer]++;
+                        players[currentPlayer]--;
+                    } else if (roll === 'C') {
+                        players[currentPlayer]--;
+                    }
+                });
+
+                currentPlayer = (currentPlayer + 1) % numPlayers;
+            }
+
+            return -1; // Should never happen
+        }
+
+        async function runMonteCarloSimulation() {
+            const numPlayers = parseInt(document.getElementById('mcPlayers').value);
+            const startingChips = parseInt(document.getElementById('mcChips').value);
+            const numSimulations = parseInt(document.getElementById('mcSims').value);
+
+            document.getElementById('mcBtn').disabled = true;
+            document.getElementById('mcProgress').style.display = 'block';
+
+            const wins = Array(numPlayers).fill(0);
+            const batchSize = 100;
+            const numBatches = Math.ceil(numSimulations / batchSize);
+
+            for (let batch = 0; batch < numBatches; batch++) {
+                const simsInBatch = Math.min(batchSize, numSimulations - batch * batchSize);
+
+                for (let i = 0; i < simsInBatch; i++) {
+                    const winner = simulateOneGame(numPlayers, startingChips);
+                    if (winner >= 0) {
+                        wins[winner]++;
+                    }
+                }
+
+                const progress = ((batch + 1) / numBatches * 100).toFixed(1);
+                document.getElementById('mcProgressBar').style.width = progress + '%';
+                document.getElementById('mcProgressBar').textContent = progress + '%';
+
+                // Allow UI to update
+                await new Promise(resolve => setTimeout(resolve, 0));
+            }
+
+            displayMonteCarloResults(wins, numSimulations, numPlayers, startingChips);
+
+            document.getElementById('mcBtn').disabled = false;
+            document.getElementById('mcProgress').style.display = 'none';
+        }
+
+        // Gemini's expected values
+        const geminiData = {
+            2: [38.2, 61.8],
+            3: [30.7, 32.8, 36.5],
+            4: [23.9, 24.3, 25.5, 26.2],
+            5: [19.4, 19.4, 20.0, 20.6, 20.6],
+            6: [16.2, 16.1, 16.4, 16.9, 17.3, 17.0]
+        };
+
+        function displayMonteCarloResults(wins, totalSims, numPlayers, startingChips) {
+            const resultsDiv = document.getElementById('mcResults');
+
+            let html = '<h3>Simulation Results</h3>';
+            html += '<table class="probability-table comparison-table"><thead><tr><th>Player</th><th>Wins</th><th>Win Rate</th>';
+
+            if (startingChips === 3 && geminiData[numPlayers]) {
+                html += '<th>Gemini Expected</th><th>Difference</th>';
+            }
+
+            html += '</tr></thead><tbody>';
+
+            wins.forEach((w, idx) => {
+                const winRate = (w / totalSims * 100).toFixed(2);
+                html += `<tr>
+                    <td>Player ${idx + 1}</td>
+                    <td>${w.toLocaleString()}</td>
+                    <td><strong>${winRate}%</strong></td>`;
+
+                if (startingChips === 3 && geminiData[numPlayers]) {
+                    const expected = geminiData[numPlayers][idx];
+                    const diff = (parseFloat(winRate) - expected).toFixed(2);
+                    const diffClass = diff > 0 ? 'diff-positive' : 'diff-negative';
+                    html += `<td>${expected}%</td><td class="${diffClass}">${diff > 0 ? '+' : ''}${diff}%</td>`;
+                }
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+
+            html += `<div class="formula">
+                Total simulations: ${totalSims.toLocaleString()}<br>
+                Players: ${numPlayers}<br>
+                Starting chips: ${startingChips}
+            </div>`;
+
+            if (startingChips === 3 && geminiData[numPlayers]) {
+                html += '<p><em>✓ Compare your simulation results with Gemini\'s theoretical probabilities above!</em></p>';
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+
+        // Initialize Cytoscape
+        function initializeCytoscape() {
+            cy = cytoscape({
+                container: document.getElementById('cy'),
+                wheelSensitivity: 0.2,
+                style: [
+                    {
+                        selector: 'node',
+                        style: {
+                            'background-color': '#bbb',
+                            'border-width': 3,
+                            'border-color': '#999',
+                            'label': 'data(label)',
+                            'text-valign': 'center',
+                            'text-halign': 'center',
+                            'font-size': '12px',
+                            'font-weight': 'bold',
+                            'color': '#333',
+                            'text-wrap': 'wrap',
+                            'text-max-width': '80px',
+                            'width': 50,
+                            'height': 50
+                        }
+                    },
+                    {
+                        selector: 'node.current',
+                        style: {
+                            'background-color': '#2196F3',
+                            'border-color': '#1976D2',
+                            'border-width': 4,
+                            'width': 60,
+                            'height': 60,
+                            'font-size': '14px'
+                        }
+                    },
+                    {
+                        selector: 'node.current.winning',
+                        style: {
+                            'background-color': '#4CAF50',
+                            'border-color': '#2196F3',
+                            'border-width': 6,
+                            'border-style': 'double',
+                            'width': 65,
+                            'height': 65,
+                            'font-size': '14px',
+                            'box-shadow': '0 0 20px rgba(76, 175, 80, 0.6), 0 0 10px rgba(33, 150, 243, 0.4)'
+                        }
+                    },
+                    {
+                        selector: 'node.winning',
+                        style: {
+                            'background-color': '#4CAF50',
+                            'border-color': '#388E3C',
+                            'border-width': 4
+                        }
+                    },
+                    {
+                        selector: 'edge',
+                        style: {
+                            'width': 'data(width)',
+                            'opacity': 'data(opacity)',
+                            'line-color': '#667eea',
+                            'target-arrow-color': '#667eea',
+                            'target-arrow-shape': 'triangle',
+                            'curve-style': 'bezier',
+                            'label': '', // Hide labels by default
+                            'font-size': '10px',
+                            'text-background-color': '#fff',
+                            'text-background-opacity': 0.95,
+                            'text-background-padding': '6px 8px',
+                            'text-background-shape': 'roundrectangle',
+                            'color': '#333',
+                            'font-weight': 'bold',
+                            'text-rotation': 'none',
+                            'text-margin-y': -15,
+                            'text-wrap': 'wrap',
+                            'text-max-width': '100px',
+                            // Make hover area larger for curved lines
+                            'overlay-padding': '8px',
+                            'overlay-opacity': 0
+                        }
+                    },
+                    {
+                        selector: 'edge.from-current',
+                        style: {
+                            'line-color': '#FFC107',
+                            'target-arrow-color': '#FFC107',
+                            'opacity': 0.9,
+                            'width': 'data(selectedWidth)',
+                            'z-index': 100
+                        }
+                    },
+                    {
+                        selector: 'edge.transition-taken',
+                        style: {
+                            'line-color': '#FF6B6B',
+                            'target-arrow-color': '#FF6B6B',
+                            'width': 'data(selectedWidth)',
+                            'z-index': 200
+                        }
+                    },
+                    {
+                        selector: 'edge.path-taken',
+                        style: {
+                            'line-color': '#FF6B6B',
+                            'target-arrow-color': '#FF6B6B',
+                            'width': 'data(selectedWidth)',
+                            'opacity': 0.8,
+                            'z-index': 150
+                        }
+                    },
+                    {
+                        selector: 'edge.path-taken.hover',
+                        style: {
+                            'label': 'data(label)',
+                            'line-color': '#FF6B6B',
+                            'target-arrow-color': '#FF6B6B',
+                            'width': 'data(selectedWidth)',
+                            'opacity': 1.0,
+                            'z-index': 999
+                        }
+                    },
+                    {
+                        selector: 'edge.from-current.hover',
+                        style: {
+                            'label': 'data(label)',
+                            'line-color': '#FFC107',
+                            'target-arrow-color': '#FFC107',
+                            'width': 'data(hoverWidth)',
+                            'opacity': 1.0,
+                            'z-index': 999
+                        }
+                    },
+                    {
+                        selector: 'edge:selected',
+                        style: {
+                            'label': 'data(label)',
+                            'line-color': '#FF6B6B',
+                            'target-arrow-color': '#FF6B6B',
+                            'width': 'data(selectedWidth)',
+                            'z-index': 999
+                        }
+                    },
+                    {
+                        selector: 'edge.hover',
+                        style: {
+                            'label': 'data(label)',
+                            'line-color': '#FF6B6B',
+                            'target-arrow-color': '#FF6B6B',
+                            'width': 'data(hoverWidth)',
+                            'z-index': 999
+                        }
+                    }
+                ]
+            });
+
+            // Add hover interactions for edges
+            cy.on('mouseover', 'edge', function(evt) {
+                const edge = evt.target;
+                edge.addClass('hover');
+            });
+
+            cy.on('mouseout', 'edge', function(evt) {
+                const edge = evt.target;
+                edge.removeClass('hover');
+            });
+
+            // Add hover interactions for nodes
+            cy.on('mouseover', 'node', function(evt) {
+                const node = evt.target;
+                node.style('font-size', '14px');
+            });
+
+            cy.on('mouseout', 'node', function(evt) {
+                const node = evt.target;
+                if (node.hasClass('current')) {
+                    node.style('font-size', '14px');
+                } else {
+                    node.style('font-size', '12px');
+                }
+            });
+        }
+
+        // Build complete state graph using BFS
+        function buildCompleteStateGraph() {
+            if (!cy) return;
+
+            // Show status message
+            const statusDiv = document.getElementById('graphStatus');
+            if (statusDiv) statusDiv.style.display = 'block';
+
+            // Start from the initial game state (not current state)
+            const numPlayers = game.players.length;
+            const startingChips = parseInt(document.getElementById('startingChips').value);
+            const startState = {
+                chips: Array(numPlayers).fill(startingChips),
+                currentPlayer: 0
+            };
+
+            const stateMap = new Map(); // key -> state info
+            const edgeList = [];
+            const visited = new Set();
+            const queue = [startState];
+
+            const stateKey = (state) => {
+                return state.chips.join(',') + '|' + state.currentPlayer;
+            };
+
+            visited.add(stateKey(startState));
+
+            const MAX_STATES = 5000; // Warning threshold
+
+            // BFS to explore all reachable states - FIRST PASS: collect all states
+            let hitLimit = false;
+            while (queue.length > 0) {
+                // Check if we've exceeded the reasonable threshold
+                if (stateMap.size > MAX_STATES) {
+                    hitLimit = true;
+                    console.error(`State space exceeded ${MAX_STATES} states. Stopping exploration.`);
+                    break;
+                }
+
+                const state = queue.shift();
+                const key = stateKey(state);
+
+                // Check if winning state
+                const playersWithChips = state.chips.filter(c => c > 0).length;
+                const isWinning = playersWithChips === 1;
+
+                // Check if current game state
+                const isCurrent = JSON.stringify(state.chips) === JSON.stringify(game.players.map(p => p.chips)) &&
+                                state.currentPlayer === game.currentPlayer;
+
+                // Store state info
+                stateMap.set(key, {
+                    state: state,
+                    isWinning: isWinning,
+                    isCurrent: isCurrent
+                });
+
+                // Don't explore from winning states
+                if (isWinning) continue;
+
+                // Generate next states
+                const nextStates = calculatePossibleNextStates(state);
+
+                nextStates.forEach(nextState => {
+                    const nextKey = stateKey(nextState);
+
+                    // Store edge info for later
+                    edgeList.push({
+                        source: key,
+                        target: nextKey,
+                        actions: nextState.actions, // Array of all possible rolls
+                        probability: nextState.probability
+                    });
+
+                    // Always add next state to stateMap if not already there (ensures complete transitions)
+                    if (!stateMap.has(nextKey)) {
+                        const nextPlayersWithChips = nextState.chips.filter(c => c > 0).length;
+                        const nextIsWinning = nextPlayersWithChips === 1;
+
+                        stateMap.set(nextKey, {
+                            state: nextState,
+                            isWinning: nextIsWinning,
+                            isCurrent: false
+                        });
+                    }
+
+                    // Add to queue for exploration if not visited
+                    if (!visited.has(nextKey)) {
+                        visited.add(nextKey);
+                        queue.push({
+                            chips: nextState.chips,
+                            currentPlayer: nextState.currentPlayer
+                        });
+                    }
+                });
+            }
+
+            // Show warning if we hit the limit
+            if (hitLimit) {
+                if (statusDiv) {
+                    statusDiv.innerHTML = `
+                        <div style="text-align: center;">
+                            <div style="font-size: 24px; margin-bottom: 10px;">⚠️</div>
+                            <div style="font-size: 18px; font-weight: bold; color: #ff6b6b; margin-bottom: 10px;">State Space Too Large</div>
+                            <div style="font-size: 14px; color: #666; margin-bottom: 15px;">
+                                The Markov chain has over ${MAX_STATES.toLocaleString()} states!<br>
+                                Graph visualization stopped early.
+                            </div>
+                            <div style="font-size: 13px; color: #999;">
+                                Try reducing:<br>
+                                • Number of players (currently ${game.players.length})<br>
+                                • Starting chips (currently ${startingChips})
+                            </div>
+                        </div>
+                    `;
+                    statusDiv.style.display = 'block';
+                    setTimeout(() => {
+                        if (statusDiv) statusDiv.style.display = 'none';
+                    }, 8000);
+                }
+            }
+
+            // SECOND PASS: Create nodes array
+            const nodes = [];
+            stateMap.forEach((info, key) => {
+                const classes = [];
+                if (info.isCurrent) classes.push('current');
+                if (info.isWinning) classes.push('winning');
+
+                nodes.push({
+                    data: {
+                        id: key,
+                        label: info.state.chips.join(',') + '\nP' + (info.state.currentPlayer + 1)
+                    },
+                    classes: classes.join(' ')
+                });
+            });
+
+            // THIRD PASS: Create edges array (only for edges where both nodes exist)
+            const edges = [];
+            let missingEdges = 0;
+            edgeList.forEach(edge => {
+                // Only add edge if both source and target nodes exist
+                if (stateMap.has(edge.source) && stateMap.has(edge.target)) {
+                    // Format actions array into label
+                    let actionsLabel;
+                    if (edge.actions && edge.actions.length > 0) {
+                        if (edge.actions[0] === 'skip') {
+                            actionsLabel = 'skip';
+                        } else if (edge.actions.length <= 3) {
+                            // Show all actions if 3 or fewer
+                            actionsLabel = edge.actions.join(', ');
+                        } else {
+                            // Show first 3 and indicate there are more
+                            actionsLabel = edge.actions.slice(0, 3).join(', ') + '...';
+                        }
+                    } else {
+                        actionsLabel = '?';
+                    }
+
+                    const edgeLabel = edge.actions && edge.actions[0] !== 'skip'
+                        ? `${actionsLabel}\n${(edge.probability * 100).toFixed(1)}%`
+                        : 'skip';
+
+                    const baseWidth = Math.max(1, edge.probability * 10);
+
+                    edges.push({
+                        data: {
+                            source: edge.source,
+                            target: edge.target,
+                            label: edgeLabel,
+                            allActions: edge.actions, // Store all actions for later use
+                            width: baseWidth,
+                            hoverWidth: baseWidth * 1.5,
+                            selectedWidth: baseWidth * 2,
+                            opacity: 0.3 + edge.probability * 0.7,
+                            prob: edge.probability
+                        }
+                    });
+                } else {
+                    missingEdges++;
+                }
+            });
+
+            if (missingEdges > 0) {
+                console.warn(`Skipped ${missingEdges} edges due to missing nodes`);
+            }
+
+            const statusMsg = hitLimit
+                ? `⚠️ Built PARTIAL graph (hit ${MAX_STATES} state limit): ${nodes.length} nodes, ${edges.length} edges`
+                : `✓ Built complete graph: ${nodes.length} nodes, ${edges.length} edges`;
+            console.log(statusMsg);
+
+            // Group nodes by total chips for hierarchical layout
+            const nodesByTotalChips = new Map();
+            nodes.forEach(node => {
+                const state = stateMap.get(node.data.id);
+                const totalChips = state.state.chips.reduce((sum, c) => sum + c, 0);
+                if (!nodesByTotalChips.has(totalChips)) {
+                    nodesByTotalChips.set(totalChips, []);
+                }
+                nodesByTotalChips.get(totalChips).push(node);
+            });
+
+            // Sort groups by total chips (descending: most chips on left)
+            const chipGroups = Array.from(nodesByTotalChips.entries()).sort((a, b) => b[0] - a[0]);
+
+            // Calculate positions for each node
+            const groupWidth = 400; // Horizontal spacing between groups (increased for clarity)
+            const nodeSpacing = 100; // Vertical spacing between nodes
+            const startX = 100;
+            const startY = 100;
+
+            chipGroups.forEach(([totalChips, groupNodes], groupIndex) => {
+                const centerX = startX + (groupIndex * groupWidth);
+
+                // Separate winning and non-winning nodes
+                const winningNodes = groupNodes.filter(n => {
+                    const state = stateMap.get(n.data.id);
+                    return state.isWinning;
+                });
+                const nonWinningNodes = groupNodes.filter(n => {
+                    const state = stateMap.get(n.data.id);
+                    return !state.isWinning;
+                });
+
+                // Helper function to arrange nodes in a circle
+                const arrangeInCircle = (nodes, centerX, centerY, radius) => {
+                    if (nodes.length === 1) {
+                        nodes[0].position = { x: centerX, y: centerY };
+                        return;
+                    }
+
+                    nodes.forEach((node, idx) => {
+                        // Distribute evenly around circle (start from top, go clockwise)
+                        const angle = (idx / nodes.length) * 2 * Math.PI - Math.PI / 2;
+                        node.position = {
+                            x: centerX + radius * Math.cos(angle),
+                            y: centerY + radius * Math.sin(angle)
+                        };
+                    });
+                };
+
+                // Calculate circle radius based on number of nodes
+                const getCircleRadius = (nodeCount) => {
+                    if (nodeCount <= 1) return 0;
+                    if (nodeCount <= 3) return 60;
+                    if (nodeCount <= 6) return 90;
+                    if (nodeCount <= 10) return 120;
+                    return Math.min(180, 80 + nodeCount * 5);
+                };
+
+                // Position non-winning nodes in a circle at top
+                const nonWinningRadius = getCircleRadius(nonWinningNodes.length);
+                const nonWinningCenterY = startY + nonWinningRadius + 50;
+                arrangeInCircle(nonWinningNodes, centerX, nonWinningCenterY, nonWinningRadius);
+
+                // Position winning nodes in a separate circle at bottom
+                if (winningNodes.length > 0) {
+                    const winningRadius = getCircleRadius(winningNodes.length);
+                    const gap = nonWinningNodes.length > 0 ? 200 : 0;
+                    const winningCenterY = nonWinningCenterY + nonWinningRadius + winningRadius + gap;
+                    arrangeInCircle(winningNodes, centerX, winningCenterY, winningRadius);
+                }
+            });
+
+            // Update graph with positioned nodes
+            cy.elements().remove();
+            cy.add(nodes);
+            cy.add(edges);
+
+            // Use preset layout to apply the calculated positions
+            const layoutConfig = {
+                name: 'preset',
+                animate: true,
+                animationDuration: 1000,
+                fit: true,
+                padding: 50
+            };
+
+            // Run preset layout with calculated positions
+            cy.layout(layoutConfig).run();
+
+            // Fit to view and hide status after layout completes
+            setTimeout(() => {
+                cy.fit(50);
+                if (statusDiv) statusDiv.style.display = 'none';
+
+                // Reapply path-taken classes to previously traversed edges
+                game.pathTaken.forEach(pathItem => {
+                    // Edge key format: "sourceStateKey|targetStateKey" where each state key is "chips|player"
+                    // So we need to split carefully
+                    const parts = pathItem.edgeKey.split('|');
+                    const source = `${parts[0]}|${parts[1]}`; // "chips|player"
+                    const target = `${parts[2]}|${parts[3]}`; // "chips|player"
+                    const edge = cy.edges(`[source="${source}"][target="${target}"]`);
+                    if (edge.length > 0) {
+                        edge.addClass('path-taken');
+                        // Restore the actual roll label
+                        if (pathItem.actualRoll) {
+                            const prob = edge.data('prob');
+                            const newLabel = `${pathItem.actualRoll}\n${(prob * 100).toFixed(1)}%`;
+                            edge.data('label', newLabel);
+                            edge.data('actualRoll', pathItem.actualRoll);
+                        }
+                    }
+                });
+
+                // Update current node and transitions panel
+                updateMarkovChainIfVisible();
+            }, 1100);
+        }
+
+        // Reset graph view
+        function resetGraphView() {
+            if (cy) {
+                cy.zoom(1);
+                cy.center();
+            }
+        }
+
+        // Fit graph to view
+        function fitGraphToView() {
+            if (cy) {
+                cy.fit(50);
+            }
+        }
+
+        // Toggle all edge labels
+        function toggleAllEdgeLabels() {
+            if (!cy) return;
+
+            const showAll = document.getElementById('showAllLabels').checked;
+
+            if (showAll) {
+                // Show all labels
+                cy.style()
+                    .selector('edge')
+                    .style('label', 'data(label)')
+                    .update();
+            } else {
+                // Hide labels by default (only show on hover)
+                cy.style()
+                    .selector('edge')
+                    .style('label', '')
+                    .update();
+            }
+        }
+
+        // Calculate possible next states
+        function calculatePossibleNextStates(state) {
+            if (game.players.length === 0) return [];
+
+            // Handle case where state might not have corresponding player in current game
+            const playerChips = state.chips[state.currentPlayer];
+            const numPlayers = state.chips.length;
+
+            if (playerChips === 0) {
+                // Skip to next player
+                return [{
+                    chips: [...state.chips],
+                    currentPlayer: (state.currentPlayer + 1) % numPlayers,
+                    probability: 1.0,
+                    action: 'skip'
+                }];
+            }
+
+            const numDice = Math.min(playerChips, 3);
+            const possibleOutcomes = generatePossibleOutcomes(numDice);
+
+            const nextStates = [];
+            possibleOutcomes.forEach(outcome => {
+                const newChips = [...state.chips];
+                const { left, right, center, probability } = outcome;
+
+                // Apply outcome
+                newChips[state.currentPlayer] -= (left + right + center);
+                if (left > 0) {
+                    const leftIdx = (state.currentPlayer + 1) % numPlayers;
+                    newChips[leftIdx] += left;
+                }
+                if (right > 0) {
+                    const rightIdx = (state.currentPlayer - 1 + numPlayers) % numPlayers;
+                    newChips[rightIdx] += right;
+                }
+
+                // Create canonical roll string (e.g., "LLC", "RDD")
+                const dots = numDice - left - right - center;
+                const rollString = 'L'.repeat(left) + 'R'.repeat(right) + 'C'.repeat(center) + 'D'.repeat(dots);
+
+                nextStates.push({
+                    chips: newChips,
+                    currentPlayer: (state.currentPlayer + 1) % numPlayers,
+                    probability,
+                    action: rollString
+                });
+            });
+
+            // Merge duplicate states
+            const merged = [];
+            nextStates.forEach(ns => {
+                const existing = merged.find(m =>
+                    JSON.stringify(m.chips) === JSON.stringify(ns.chips) &&
+                    m.currentPlayer === ns.currentPlayer
+                );
+                if (existing) {
+                    existing.probability += ns.probability;
+                    // Collect all action labels in an array
+                    if (!existing.actions) {
+                        existing.actions = [existing.action];
+                        delete existing.action;
+                    }
+                    if (!existing.actions.includes(ns.action)) {
+                        existing.actions.push(ns.action);
+                    }
+                } else {
+                    // Store action in actions array for consistency
+                    ns.actions = [ns.action];
+                    merged.push(ns);
+                }
+            });
+
+            // Sort by probability
+            merged.sort((a, b) => b.probability - a.probability);
+
+            // Don't limit - return all possible next states for complete probability
+            return merged;
+        }
+
+        // Generate possible dice outcomes
+        function generatePossibleOutcomes(numDice) {
+            const outcomes = [];
+
+            for (let l = 0; l <= numDice; l++) {
+                for (let r = 0; r <= numDice - l; r++) {
+                    for (let c = 0; c <= numDice - l - r; c++) {
+                        const dots = numDice - l - r - c;
+                        if (dots < 0) continue;
+
+                        // Calculate probability using multinomial distribution
+                        const prob = factorial(numDice) /
+                                    (factorial(l) * factorial(r) * factorial(c) * factorial(dots)) *
+                                    Math.pow(1/6, l) * Math.pow(1/6, r) * Math.pow(1/6, c) * Math.pow(1/2, dots);
+
+                        outcomes.push({ left: l, right: r, center: c, probability: prob });
+                    }
+                }
+            }
+
+            return outcomes;
+        }
+
+        // Update Markov chain on game state change
+        function updateMarkovChainIfVisible(beforeStateKey = null, afterStateKey = null, actualRoll = null) {
+            if (!cy) return;
+
+            // Get current state key (use explicit afterStateKey if provided, otherwise compute from game state)
+            const currentStateKey = afterStateKey || (game.players.map(p => p.chips).join(',') + '|' + game.currentPlayer);
+
+            // Remove all highlights (but keep path-taken class)
+            cy.nodes().removeClass('current');
+            cy.edges().removeClass('from-current transition-taken');
+
+            // Find and highlight current node
+            const currentNode = cy.getElementById(currentStateKey);
+            if (currentNode.length > 0) {
+                currentNode.addClass('current');
+
+                // Check if this is a winning state
+                const playersWithChips = game.players.filter(p => p.chips > 0).length;
+                const isWinning = playersWithChips === 1;
+
+                // Animate transition if we have explicit state keys OR a stored previous state
+                const previousStateKey = beforeStateKey || lastStateKey;
+                if (previousStateKey && previousStateKey !== currentStateKey) {
+                    const lastNode = cy.getElementById(previousStateKey);
+                    if (lastNode.length > 0) {
+                        // Find the edge that was taken
+                        const transitionEdge = cy.edges(`[source="${previousStateKey}"][target="${currentStateKey}"]`);
+                        if (transitionEdge.length > 0) {
+                            // Remove yellow highlight if it had it
+                            transitionEdge.removeClass('from-current');
+
+                            // Add this edge to the path taken with the actual roll
+                            const edgeKey = `${previousStateKey}|${currentStateKey}`;
+                            const existingPath = game.pathTaken.find(p => p.edgeKey === edgeKey);
+                            if (!existingPath && actualRoll) {
+                                game.pathTaken.push({ edgeKey, actualRoll });
+                            }
+
+                            // Update edge label to show the actual roll that was made
+                            if (actualRoll) {
+                                const prob = transitionEdge.data('prob');
+                                const newLabel = `${actualRoll}\n${(prob * 100).toFixed(1)}%`;
+                                transitionEdge.data('label', newLabel);
+                                transitionEdge.data('actualRoll', actualRoll); // Store for later
+                            }
+
+                            // Animate a marker traveling along the edge
+                            animateMarkerAlongEdge(transitionEdge);
+
+                            // Turn the edge red to show it was taken (matches the red marker)
+                            transitionEdge.addClass('transition-taken');
+                            setTimeout(() => {
+                                // After animation, keep it red permanently with path-taken class
+                                transitionEdge.removeClass('transition-taken');
+                                transitionEdge.addClass('path-taken');
+                            }, 800);
+                        }
+                    }
+                }
+
+                // Only highlight outgoing edges if NOT a winning state
+                const outgoingEdges = currentNode.connectedEdges(`[source="${currentStateKey}"]`);
+                if (!isWinning && !game.gameOver) {
+                    outgoingEdges.addClass('from-current');
+                }
+
+                // Update transitions panel
+                updateTransitionsPanel(currentStateKey, outgoingEdges, isWinning);
+            }
+
+            // Store current state for next update (only if not explicitly provided)
+            if (!afterStateKey) {
+                lastStateKey = currentStateKey;
+            } else {
+                lastStateKey = afterStateKey;
+            }
+        }
+
+        // Animate a marker (chip) traveling along an edge
+        function animateMarkerAlongEdge(edge) {
+            if (!edge || edge.length === 0) return;
+
+            // Create a marker element (red to represent state transition)
+            const marker = document.createElement('div');
+            marker.style.position = 'absolute';
+            marker.style.width = '20px';
+            marker.style.height = '20px';
+            marker.style.background = 'linear-gradient(135deg, #ff4444 0%, #ff6b6b 100%)';
+            marker.style.borderRadius = '50%';
+            marker.style.border = '3px solid #cc0000';
+            marker.style.boxShadow = '0 0 15px rgba(255, 68, 68, 0.8), 0 4px 8px rgba(0,0,0,0.3)';
+            marker.style.zIndex = '10000';
+            marker.style.pointerEvents = 'none';
+            marker.style.transition = 'none';
+
+            const cyContainer = document.getElementById('cy');
+            cyContainer.appendChild(marker);
+
+            // Get edge path points
+            const sourcePos = edge.source().renderedPosition();
+            const targetPos = edge.target().renderedPosition();
+
+            // Calculate control point for bezier curve (approximate)
+            const midX = (sourcePos.x + targetPos.x) / 2;
+            const midY = (sourcePos.y + targetPos.y) / 2;
+            const dx = targetPos.x - sourcePos.x;
+            const dy = targetPos.y - sourcePos.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const offset = dist * 0.2; // Curve offset
+
+            // Perpendicular offset for curve
+            const perpX = -dy / dist * offset;
+            const perpY = dx / dist * offset;
+            const controlX = midX + perpX;
+            const controlY = midY + perpY;
+
+            // Animate along the curve
+            const duration = 600;
+            const startTime = Date.now();
+
+            function animate() {
+                const elapsed = Date.now() - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // Quadratic bezier curve
+                const t = progress;
+                const mt = 1 - t;
+                const mt2 = mt * mt;
+                const t2 = t * t;
+
+                const x = mt2 * sourcePos.x + 2 * mt * t * controlX + t2 * targetPos.x;
+                const y = mt2 * sourcePos.y + 2 * mt * t * controlY + t2 * targetPos.y;
+
+                marker.style.left = (x - 10) + 'px';
+                marker.style.top = (y - 10) + 'px';
+
+                // Scale effect
+                const scale = 1 + Math.sin(progress * Math.PI) * 0.3;
+                marker.style.transform = `scale(${scale})`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    // Fade out and remove
+                    marker.style.transition = 'opacity 0.2s';
+                    marker.style.opacity = '0';
+                    setTimeout(() => marker.remove(), 200);
+                }
+            }
+
+            animate();
+        }
+
+        // Update the transitions panel with current possibilities
+        function updateTransitionsPanel(currentStateKey, edges, isWinning) {
+            const panel = document.getElementById('transitionsContent');
+            if (!panel) return;
+
+            // Always show current state at top
+            // Parse the state key to convert player index from 0-based to 1-based
+            const [chipsStr, playerIndexStr] = currentStateKey.split('|');
+            const playerIndex = parseInt(playerIndexStr);
+            const currentStateLabel = `${chipsStr} | P${playerIndex + 1}`;
+            let html = `
+                <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196F3;">
+                    <div style="font-size: 11px; color: #666; margin-bottom: 4px; font-weight: bold;">CURRENT STATE</div>
+                    <div style="font-family: monospace; font-size: 13px; color: #1976D2; font-weight: bold;">${currentStateLabel}</div>
+                </div>
+            `;
+
+            if (isWinning || game.gameOver) {
+                html += `
+                    <div style="text-align: center; padding: 30px 20px; color: #4CAF50;">
+                        <div style="font-size: 48px; margin-bottom: 10px;">🎉</div>
+                        <div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">Game Over!</div>
+                        <div style="font-size: 14px; color: #666;">This is a winning state</div>
+                    </div>
+                `;
+                panel.innerHTML = html;
+                return;
+            }
+
+            if (edges.length === 0) {
+                html += '<em>No outgoing transitions from this state</em>';
+                panel.innerHTML = html;
+                return;
+            }
+
+            // Collect and sort transitions by probability
+            const transitions = [];
+            edges.forEach(edge => {
+                const targetKey = edge.data('target');
+                const prob = edge.data('prob');
+                const allActions = edge.data('allActions') || [];
+                const actualRoll = edge.data('actualRoll'); // For path-taken edges
+                const targetNode = cy.getElementById(targetKey);
+
+                if (targetNode.length > 0) {
+                    const targetState = targetNode.data('label');
+
+                    // Format actions display
+                    let actionDisplay;
+                    if (actualRoll) {
+                        // If this edge was actually taken, show only the actual roll
+                        actionDisplay = actualRoll;
+                    } else if (allActions.length === 0) {
+                        actionDisplay = '?';
+                    } else if (allActions[0] === 'skip') {
+                        actionDisplay = 'skip';
+                    } else if (allActions.length <= 6) {
+                        // Show all if 6 or fewer
+                        actionDisplay = allActions.join(', ');
+                    } else {
+                        // Show first 5 and count
+                        actionDisplay = allActions.slice(0, 5).join(', ') + ` +${allActions.length - 5} more`;
+                    }
+
+                    transitions.push({
+                        state: targetState,
+                        action: actionDisplay,
+                        probability: prob
+                    });
+                }
+            });
+
+            // Sort by probability descending
+            transitions.sort((a, b) => b.probability - a.probability);
+
+            // Calculate total probability
+            const totalProb = transitions.reduce((sum, t) => sum + t.probability, 0);
+
+            // Build HTML table (append to existing html)
+            html += `
+                <div style="margin-bottom: 10px; color: #666;">
+                    <strong>${transitions.length}</strong> possible next states from current position
+                    <div style="font-size: 11px; color: #999; margin-top: 4px;">
+                        Total probability: ${(totalProb * 100).toFixed(1)}% ${totalProb < 0.999 ? '⚠️ (may not sum to 100% due to rounding)' : '✓'}
+                    </div>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                    <thead>
+                        <tr style="background: #f0f0f0; border-bottom: 2px solid #667eea;">
+                            <th style="padding: 8px; text-align: left; font-weight: bold;">Next State</th>
+                            <th style="padding: 8px; text-align: left; font-weight: bold;">Dice</th>
+                            <th style="padding: 8px; text-align: right; font-weight: bold;">Prob</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            transitions.forEach((t, idx) => {
+                const bgColor = idx % 2 === 0 ? '#fff' : '#f9f9f9';
+                const probPercent = (t.probability * 100).toFixed(1);
+                const probWidth = Math.min(100, t.probability * 100);
+
+                html += `
+                    <tr style="background: ${bgColor}; border-bottom: 1px solid #eee;">
+                        <td style="padding: 8px; font-family: monospace; font-size: 11px;">${t.state}</td>
+                        <td style="padding: 8px; font-family: monospace; font-size: 11px; color: #667eea;">${t.action}</td>
+                        <td style="padding: 8px; text-align: right;">
+                            <div style="display: flex; align-items: center; justify-content: flex-end; gap: 5px;">
+                                <div style="flex: 0 0 60px; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                                    <div style="height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); width: ${probWidth}%;"></div>
+                                </div>
+                                <span style="font-weight: bold; color: #667eea; font-size: 11px;">${probPercent}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            panel.innerHTML = html;
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            // Initialize Markov chain first
+            if (!cy) {
+                initializeCytoscape();
+            }
+            // Start game (this will build the graph)
+            startNewGame();
+        };
+    </script>
+</body>
+</html>
