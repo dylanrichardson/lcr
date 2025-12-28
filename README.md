@@ -2,9 +2,19 @@
 
 An interactive visualization tool for exploring the Left Center Right (LCR) dice game as a Markov chain. Watch the game play out in real-time while seeing the complete state space and probability transitions.
 
-🎮 **[Live Demo](https://dylanrichardson.github.io/lcr/)** (Update this URL after deployment)
+🎮 **[Live Demo](https://dylanrichardson.github.io/lcr/)**
 
-![LCR Markov Chain Visualization](screenshot.png) *(Add a screenshot after deploying)*
+### Screenshots
+
+**Game Simulator**
+
+![Game Simulator with 4 players](images/game-simulator.png)
+*Interactive game board showing chip positions and center pot*
+
+**Markov Chain Visualization**
+
+![Markov chain state space with transitions](images/markov-visualization.png)
+*Complete state space organized by chip count with probability transitions*
 
 ## What is LCR?
 
